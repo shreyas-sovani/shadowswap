@@ -441,24 +441,31 @@ forge script script/DeployHook.s.sol:DeployHook \
 - 🏊 Initializes ETH/Token pool at 1:1 price ratio
 - 📋 Outputs all Pool Key parameters for backend configuration
 
-### After Deployment: Update Frontend Config
+### After Deployment: Auto-Saved Config
 
-After deploying the hook, update `frontend/src/config.ts` with the deployment output:
+The deployment script automatically saves all addresses to `frontend/src/config.json`:
 
-```typescript
-// frontend/src/config.ts
-
-// Replace with actual deployed addresses from forge script output
-export const HOOK_ADDRESS = '0x...80'; // Must end with correct flag bits
-
-export const POOL_KEY = {
-  currency0: '0x0000000000000000000000000000000000000000', // ETH
-  currency1: '0x...', // Your deployed MockToken address
-  fee: 3000,
-  tickSpacing: 60,
-  hooks: '0x...80', // Same as HOOK_ADDRESS
-};
+```json
+{
+  "hookAddress": "0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080",
+  "mockTokenAddress": "0x77E725B2F1096Df61A7BC594632c1a1f2799417C",
+  "solverAddress": "0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3",
+  "poolKey": {
+    "currency0": "0x0000000000000000000000000000000000000000",
+    "currency1": "0x77E725B2F1096Df61A7BC594632c1a1f2799417C",
+    "fee": 3000,
+    "tickSpacing": 60
+  }
+}
 ```
+
+**Current Sepolia Deployment (Feb 2026):**
+
+| Contract | Address |
+|----------|---------|
+| ShadowHook | `0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080` |
+| MockToken (SHADOW) | `0x77E725B2F1096Df61A7BC594632c1a1f2799417C` |
+| Solver | `0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3` |
 
 **Sepolia Contract Addresses (Uniswap v4):**
 
@@ -598,10 +605,14 @@ optimizer_runs = 200
 - [x] **Phase 1**: Yellow Network Research & Documentation
 - [x] **Phase 2**: Yellow Network Auth + Channel Creation (`7dfe590`)
 - [x] **Phase 3**: Express Server & Matcher Core (`f919033`)
-- [x] **Phase 4**: Uniswap v4 Hook (ShadowHook.sol)
+- [x] **Phase 4**: Uniswap v4 Hook (ShadowHook.sol) (`cc64abd`)
 - [x] **Phase 5**: Comprehensive Foundry Tests (7/7 passing)
-- [x] **Phase 5.5**: Sepolia Deployment Script with CREATE2 Salt Mining
-- [x] **Phase 6**: Frontend Setup & Logic Layer
+- [x] **Phase 5.5**: Sepolia Deployment Script with CREATE2 Salt Mining (`6166f45`)
+- [x] **Phase 5.5.1**: Auto-save deployment addresses to frontend (`e4ecb55`)
+  - Updated `foundry.toml` with `fs_permissions` for file writes
+  - `DeployHook.s.sol` writes `config.json` automatically via `vm.writeFile()`
+  - Deployed to Sepolia: Hook `0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080`
+- [x] **Phase 6**: Frontend Setup & Logic Layer (`5606b91`)
   - React + Vite + TypeScript scaffold
   - Wagmi v2 + React Query Web3 provider
   - Tailwind CSS styling
@@ -615,7 +626,6 @@ optimizer_runs = 200
   - Swap panel with token selection
   - Intent status tracking
   - Transaction history
-- [ ] Deploy ShadowHook to Sepolia testnet
 - [ ] Backend integration with deployed hook
 - [ ] End-to-end intent flow testing
 
