@@ -2,7 +2,6 @@ import {
     createWalletClient,
     createPublicClient,
     http,
-    parseAbi,
     type Address,
     type Hex,
     formatEther,
@@ -43,13 +42,56 @@ const POOL_KEY = {
 
 // ============ ABI ============
 
-// Human-readable ABI for ShadowRouter
-const SHADOW_ROUTER_ABI = parseAbi([
-    'function executeMatch(address user, tuple(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) poolKey, bool zeroForOne, uint256 amountIn) external payable returns (uint256 amountOut)',
-    'function solver() external view returns (address)',
-    'function manager() external view returns (address)',
-    'event MatchExecuted(address indexed user, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut)',
-]);
+// ShadowRouter ABI for executeMatch function
+const SHADOW_ROUTER_ABI = [
+    {
+        name: 'executeMatch',
+        type: 'function',
+        stateMutability: 'payable',
+        inputs: [
+            { name: 'user', type: 'address' },
+            {
+                name: 'poolKey',
+                type: 'tuple',
+                components: [
+                    { name: 'currency0', type: 'address' },
+                    { name: 'currency1', type: 'address' },
+                    { name: 'fee', type: 'uint24' },
+                    { name: 'tickSpacing', type: 'int24' },
+                    { name: 'hooks', type: 'address' },
+                ],
+            },
+            { name: 'zeroForOne', type: 'bool' },
+            { name: 'amountIn', type: 'uint256' },
+        ],
+        outputs: [{ name: 'amountOut', type: 'uint256' }],
+    },
+    {
+        name: 'solver',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ name: '', type: 'address' }],
+    },
+    {
+        name: 'manager',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ name: '', type: 'address' }],
+    },
+    {
+        name: 'MatchExecuted',
+        type: 'event',
+        inputs: [
+            { name: 'user', type: 'address', indexed: true },
+            { name: 'tokenIn', type: 'address', indexed: true },
+            { name: 'tokenOut', type: 'address', indexed: true },
+            { name: 'amountIn', type: 'uint256', indexed: false },
+            { name: 'amountOut', type: 'uint256', indexed: false },
+        ],
+    },
+] as const;
 
 // ============ Types ============
 

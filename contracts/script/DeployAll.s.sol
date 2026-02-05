@@ -33,7 +33,11 @@ contract DeployAll is Script, IUnlockCallback {
     // ============ Pool Configuration ============
     uint24 constant LP_FEE = 3000;
     int24 constant TICK_SPACING = 60;
-    uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    
+    // Price: 1 ETH = 1000 SHADOW
+    // sqrtPriceX96 = sqrt(1000) * 2^96 = 31.622... * 2^96
+    // = 2505414483750479311864222358937
+    uint160 constant SQRT_PRICE_1000 = 2505414483750479311864222358937;
 
     // ============ Liquidity Configuration ============
     int24 constant TICK_LOWER = -887220; // Full range (divisible by 60)
@@ -74,11 +78,30 @@ contract DeployAll is Script, IUnlockCallback {
         mockToken = new MockERC20("ShadowSwap Test Token", "SHADOW", 18);
         console.log("[1/6] Mock Token deployed at:", address(mockToken));
 
-        // ========== Step 2: Mine salt and deploy ShadowHook ==========
+        // ========== Step 2: Predict ShadowRouter address ==========
+        // We need to know the Router address before deploying the Hook
+        // because the Hook checks if sender == solver (which will be the Router)
+        bytes32 routerSalt = keccak256("ShadowRouter_v1");
+        bytes memory routerCreationCode = type(ShadowRouter).creationCode;
+        bytes memory routerConstructorArgs = abi.encode(POOL_MANAGER, solver);
+        bytes32 routerInitCodeHash = keccak256(abi.encodePacked(routerCreationCode, routerConstructorArgs));
+        
+        address predictedRouterAddress = address(uint160(uint256(keccak256(abi.encodePacked(
+            bytes1(0xff),
+            CREATE2_DEPLOYER,
+            routerSalt,
+            routerInitCodeHash
+        )))));
+        
+        console.log("[2/6] Predicted Router address:", predictedRouterAddress);
+
+        // ========== Step 3: Mine salt and deploy ShadowHook ==========
+        // The Hook's solver is set to the ROUTER address (not the backend wallet)
+        // This allows the Router to execute swaps through the protected pool
         uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG);
         
         bytes memory creationCode = type(ShadowHook).creationCode;
-        bytes memory constructorArgs = abi.encode(POOL_MANAGER, solver);
+        bytes memory constructorArgs = abi.encode(POOL_MANAGER, predictedRouterAddress);
 
         (address predictedHookAddress, bytes32 salt) = HookMiner.find(
             CREATE2_DEPLOYER,
@@ -87,15 +110,18 @@ contract DeployAll is Script, IUnlockCallback {
             constructorArgs
         );
 
-        hook = new ShadowHook{salt: salt}(POOL_MANAGER, solver);
+        hook = new ShadowHook{salt: salt}(POOL_MANAGER, predictedRouterAddress);
         require(address(hook) == predictedHookAddress, "Hook address mismatch!");
-        console.log("[2/6] ShadowHook deployed at:", address(hook));
+        console.log("[3/6] ShadowHook deployed at:", address(hook));
+        console.log("  Hook solver (Router):", hook.solver());
 
-        // ========== Step 3: Deploy ShadowRouter ==========
-        router = new ShadowRouter(POOL_MANAGER, solver);
-        console.log("[3/6] ShadowRouter deployed at:", address(router));
+        // ========== Step 4: Deploy ShadowRouter at predicted address ==========
+        router = new ShadowRouter{salt: routerSalt}(POOL_MANAGER, solver);
+        require(address(router) == predictedRouterAddress, "Router address mismatch!");
+        console.log("[4/6] ShadowRouter deployed at:", address(router));
+        console.log("  Router solver (Backend):", router.solver());
 
-        // ========== Step 4: Setup Pool Key ==========
+        // ========== Step 5: Setup Pool Key ==========
         address token0;
         address token1;
         
@@ -116,22 +142,17 @@ contract DeployAll is Script, IUnlockCallback {
         });
 
         poolId = PoolId.unwrap(poolKey.toId());
-        console.log("[4/6] Pool Key configured");
-        console.log("  Currency0:", token0);
         console.log("  Currency1:", token1);
 
-        // ========== Step 5: Initialize Pool ==========
-        int24 initialTick = POOL_MANAGER.initialize(poolKey, SQRT_PRICE_1_1);
-        console.log("[5/6] Pool initialized at tick:", initialTick);
+        // ========== Step 6: Initialize Pool ==========
+        int24 initialTick = POOL_MANAGER.initialize(poolKey, SQRT_PRICE_1000);
+        console.log("[6/6] Pool initialized at tick:", initialTick);
 
-        // ========== Step 6: Mint tokens to deployer for liquidity (manual step) ==========
-        // Note: Liquidity must be added via PositionManager or a dedicated LiquidityHelper contract
-        // The unlock callback pattern doesn't work in broadcast mode (EOA can't receive callbacks)
+        // Mint tokens to deployer for liquidity
         mockToken.mint(msg.sender, TOKEN_LIQUIDITY);
-        console.log("[6/6] Minted SHADOW tokens to deployer for liquidity");
-        console.log("  SHADOW minted:", TOKEN_LIQUIDITY);
+        console.log("Minted SHADOW tokens to deployer:", TOKEN_LIQUIDITY);
         console.log("");
-        console.log("  NOTE: Add liquidity manually via Uniswap v4 PositionManager");
+        console.log("NOTE: Run DeployAndAddLiquidity.s.sol to add liquidity");
 
         vm.stopBroadcast();
 

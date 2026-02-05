@@ -40,8 +40,9 @@ contract DeployHook is Script {
     /// @notice Tick spacing for the pool
     int24 constant TICK_SPACING = 60;
     
-    /// @notice Initial sqrt price for 1:1 ratio (sqrt(1) * 2^96)
-    uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    /// @notice Initial sqrt price for 1 ETH = 1000 SHADOW
+    /// sqrtPriceX96 = sqrt(1000) * 2^96
+    uint160 constant SQRT_PRICE_1000 = 2505414483750479311864222358937;
 
     // ============ Deployment Results ============
     
@@ -138,7 +139,7 @@ contract DeployHook is Script {
         poolId = PoolId.unwrap(poolKey.toId());
 
         // Step 6: Initialize the pool
-        int24 initialTick = POOL_MANAGER.initialize(poolKey, SQRT_PRICE_1_1);
+        int24 initialTick = POOL_MANAGER.initialize(poolKey, SQRT_PRICE_1000);
         console.log("Pool initialized at tick:", initialTick);
 
         vm.stopBroadcast();

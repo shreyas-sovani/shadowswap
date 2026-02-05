@@ -8,6 +8,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Status](https://img.shields.io/badge/Status-Live%20on%20Sepolia-success)](https://sepolia.etherscan.io/)
 
 ---
 
@@ -29,6 +30,14 @@ User → Private Intent → Solver Matches P2P → Yellow State Channel → Hook
                              No public mempool!                    Only solver can execute!
 ```
 
+### ✅ Fully Functional on Sepolia Testnet
+
+ShadowSwap is **live and working** on Sepolia! Users can:
+1. Connect their wallet to the frontend
+2. Submit swap intents (ETH ↔ SHADOW)
+3. Get matched with counter-parties automatically
+4. Have swaps settled on-chain through the protected Uniswap v4 pool
+
 ---
 
 ## 🏗️ Architecture
@@ -47,6 +56,11 @@ User → Private Intent → Solver Matches P2P → Yellow State Channel → Hook
 │  │    User B     │───────>│       │                    │              │   │
 │  │  (Intent Tx)  │        │       ▼                    ▼              │   │
 │  └───────────────┘        │  ┌────────────────────────────────────┐   │   │
+│                           │  │          Settler Engine            │   │   │
+│                           │  │   (On-Chain Settlement via Router) │   │   │
+│                           │  └───────────────┬────────────────────┘   │   │
+│                           │                  │                         │   │
+│                           │  ┌────────────────────────────────────┐   │   │
 │                           │  │         Yellow Client              │   │   │
 │                           │  │   (State Channel Coordination)     │   │   │
 │                           │  └───────────────┬────────────────────┘   │   │
@@ -66,10 +80,16 @@ User → Private Intent → Solver Matches P2P → Yellow State Channel → Hook
 │  │                    On-Chain Layer (Uniswap v4)                       │ │
 │  │                                                                       │ │
 │  │  ┌─────────────────┐      ┌───────────────────────────────────────┐  │ │
-│  │  │   PoolManager   │◄─────│           ShadowHook.sol              │  │ │
-│  │  │   (v4-core)     │      │   - beforeSwap() validation          │  │ │
-│  │  └─────────────────┘      │   - Only solver can execute swaps    │  │ │
-│  │                           │   - Emits PrivateTradeSettled event  │  │ │
+│  │  │   PoolManager   │◄─────│           ShadowRouter.sol            │  │ │
+│  │  │   (v4-core)     │      │   - executeMatch() for settlements   │  │ │
+│  │  └────────┬────────┘      │   - Pulls funds via transferFrom     │  │ │
+│  │           │               │   - IUnlockCallback pattern          │  │ │
+│  │           ▼               └───────────────────────────────────────┘  │ │
+│  │  ┌─────────────────┐      ┌───────────────────────────────────────┐  │ │
+│  │  │   ETH/SHADOW    │◄─────│           ShadowHook.sol              │  │ │
+│  │  │     Pool        │      │   - beforeSwap() validation          │  │ │
+│  │  │  (1:1000 ratio) │      │   - Only solver can execute swaps    │  │ │
+│  │  └─────────────────┘      │   - Emits PrivateTradeSettled event  │  │ │
 │  │                           └───────────────────────────────────────┘  │ │
 │  └──────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
@@ -87,41 +107,51 @@ shadowswap/
 ├── frontend/                    # React + Vite + TypeScript dApp
 │   ├── package.json             # Dependencies (wagmi, viem, tailwind)
 │   ├── vite.config.ts           # Vite + Tailwind configuration
-│   ├── .env.example             # Environment template
 │   └── src/
 │       ├── main.tsx             # App entry (Web3Provider wrapper)
-│       ├── App.tsx              # Main UI component
+│       ├── App.tsx              # Main layout with SwapCard
 │       ├── Web3Provider.tsx     # Wagmi + React Query setup
-│       ├── config.ts            # Backend URL, Hook address, Pool Key
+│       ├── config.ts            # Contract addresses & Pool Key exports
+│       ├── config.json          # Auto-generated deployment config
 │       ├── types.ts             # Intent, Token, API types
+│       ├── components/
+│       │   └── SwapCard.tsx     # Main swap interface component
+│       ├── hooks/
+│       │   ├── useShadowSubmit.ts # Intent submission hook
+│       │   └── useToken.ts      # Token balance/approve hooks
 │       └── utils/
-│           ├── index.ts         # Barrel exports
 │           ├── crypto.ts        # AES-GCM encryption, key derivation
 │           └── api.ts           # Backend API client
 │
 ├── backend/                     # Node.js/TypeScript solver backend
-│   ├── package.json             # Dependencies (express, viem, ws, nitrolite)
+│   ├── package.json             # Dependencies (express, viem, ws)
 │   ├── tsconfig.json            # TypeScript configuration
 │   └── src/
 │       ├── server.ts            # Express API server (POST /submit-intent)
-│       ├── matcher.ts           # OrderBook intent matching engine
+│       ├── matcher.ts           # Price-aware OrderBook matching engine
+│       ├── settler.ts           # On-chain settlement via ShadowRouter
 │       ├── yellow-client.ts     # Yellow Network WebSocket client
+│       ├── config.json          # Deployment addresses (synced with frontend)
 │       ├── types.ts             # TypeScript type definitions
-│       ├── verify-auth.ts       # Yellow authentication flow testing
-│       └── check-conn.ts        # Connection verification utility
+│       └── abis/
+│           └── ShadowRouter.json # Router ABI for settlements
 │
 ├── contracts/                   # Foundry Solidity project
 │   ├── foundry.toml             # Foundry config (solc 0.8.26, via_ir, cancun)
 │   ├── remappings.txt           # Import remappings
 │   ├── src/
-│   │   └── ShadowHook.sol       # Uniswap v4 Hook (solver-only swaps)
+│   │   ├── ShadowHook.sol       # Uniswap v4 Hook (solver-only swaps)
+│   │   └── ShadowRouter.sol     # Router for fund transfer & settlement
 │   ├── script/
-│   │   ├── DeployHook.s.sol     # Foundry deployment script for Sepolia
+│   │   ├── DeployAll.s.sol      # Master deployment script
+│   │   ├── DeployHook.s.sol     # Hook-only deployment
+│   │   ├── AddLiquidity.s.sol   # Liquidity addition script
+│   │   ├── DeployAndAddLiquidity.s.sol # Combined liquidity helper
 │   │   └── mocks/
-│   │       └── MockERC20.sol    # Mock token for testing
+│   │       └── MockERC20.sol    # Mock SHADOW token for testing
 │   ├── test/
 │   │   └── ShadowHook.t.sol     # Comprehensive Foundry tests (7/7 passing)
-│   └── lib/                     # Dependencies (v4-periphery, forge-std)
+│   └── lib/                     # Dependencies (v4-core, v4-periphery, forge-std)
 │
 └── docs/                        # Reference documentation
     ├── Learn yellow.md          # Yellow Network learning path
@@ -133,18 +163,18 @@ shadowswap/
 
 ## 🔧 Components
 
-### 1. ShadowHook (On-Chain)
+### 1. ShadowHook (On-Chain MEV Protection)
 
-The core MEV protection mechanism - a Uniswap v4 Hook that restricts swap execution to our whitelisted solver.
+The core MEV protection mechanism - a Uniswap v4 Hook that restricts swap execution to our whitelisted solver (the Router contract).
 
 **File:** `contracts/src/ShadowHook.sol`
 
 ```solidity
 contract ShadowHook is BaseHook {
-    address public immutable solver;  // Whitelisted backend address
+    address public immutable solver;  // ShadowRouter address
     
     error OnlySolver();
-    event PrivateTradeSettled(bytes32 indexed key, int256 amountSpecified);
+    event PrivateTradeSettled(bytes32 indexed poolId, int256 amountSpecified);
     
     function _beforeSwap(
         address sender,
@@ -159,140 +189,171 @@ contract ShadowHook is BaseHook {
 }
 ```
 
-**Key Features:**
-- ✅ Only `beforeSwap` hook enabled
-- ✅ Reverts for any non-solver swap attempts
-- ✅ Emits `PrivateTradeSettled` event for off-chain tracking
-- ✅ Immutable solver address (set at deployment)
+### 2. ShadowRouter (On-Chain Settlement)
 
-### 2. Intent Matcher (Backend)
+The router contract that handles fund transfers and executes swaps through the PoolManager.
 
-A peer-to-peer order matching engine that finds compatible intents for atomic execution.
+**File:** `contracts/src/ShadowRouter.sol`
+
+```solidity
+contract ShadowRouter is IUnlockCallback {
+    address public immutable solver;      // Backend wallet address
+    IPoolManager public immutable poolManager;
+    
+    modifier onlySolver() {
+        require(msg.sender == solver, "Only solver");
+        _;
+    }
+    
+    /// @notice Execute a matched intent - pulls funds from user and swaps
+    function executeMatch(
+        PoolKey calldata key,
+        address user,
+        bool zeroForOne,
+        int256 amountSpecified
+    ) external payable onlySolver returns (BalanceDelta) {
+        // For token swaps, pull tokens from user first
+        if (!zeroForOne) {
+            IERC20(Currency.unwrap(key.currency1)).transferFrom(
+                user, address(this), uint256(amountSpecified)
+            );
+        }
+        
+        // Execute swap through PoolManager.unlock pattern
+        bytes memory result = poolManager.unlock(
+            abi.encode(key, user, zeroForOne, amountSpecified)
+        );
+        return abi.decode(result, (BalanceDelta));
+    }
+}
+```
+
+### 3. Settler Engine (Backend)
+
+Executes on-chain settlements when intents are matched.
+
+**File:** `backend/src/settler.ts`
+
+```typescript
+class Settler {
+    async executeMatch(intentA: Intent, intentB: Intent): Promise<SettlementResult[]> {
+        // Execute both sides of the matched trade
+        const result1 = await this.settleIntent(intentA);
+        const result2 = await this.settleIntent(intentB);
+        
+        // Notify Yellow Network of the completed trade
+        await yellowClient.executeTrade(intentA, intentB);
+        
+        return [result1, result2];
+    }
+    
+    private async settleIntent(intent: Intent): Promise<SettlementResult> {
+        // Call ShadowRouter.executeMatch() on-chain
+        const txHash = await walletClient.writeContract({
+            address: SHADOW_ROUTER_ADDRESS,
+            abi: SHADOW_ROUTER_ABI,
+            functionName: 'executeMatch',
+            args: [poolKey, intent.userAddress, zeroForOne, amountSpecified],
+            value: isEthSwap ? BigInt(intent.amountIn) : 0n,
+        });
+        
+        return { success: true, txHash };
+    }
+}
+```
+
+### 4. Price-Aware Order Matcher (Backend)
+
+Matches intents based on the pool's price ratio (1 ETH = 1000 SHADOW).
 
 **File:** `backend/src/matcher.ts`
 
 ```typescript
-export class OrderBook {
-    addIntent(newIntent: Intent): [Intent, Intent] | null {
-        // Match logic: Find inverse pair with compatible amounts
-        // TokenA→TokenB paired with TokenB→TokenA
-        // Exact match on amounts (simplified for v1)
-    }
-}
-```
-
-### 3. Yellow Network Client (Backend)
-
-WebSocket client for off-chain state channel coordination via Yellow Network's Clearnode.
-
-**File:** `backend/src/yellow-client.ts`
-
-```typescript
-export interface YellowClient {
-    ws: WebSocket;
-    account: Account;
-    sessionKey: SessionKeyInfo;
-    sendRequest: (method: string, params: object) => Promise<RpcResponse>;
-    executeTrade: (intentA: Intent, intentB: Intent) => Promise<void>;
-}
-```
-
-**Capabilities:**
-- 🔐 Auth request/response with session keys
-- 📡 Nitro RPC message signing
-- ⚡ Instant off-chain transfers
-- 🔗 EIP-712 typed data support
-
-### 4. Express API Server (Backend)
-
-REST API for intent submission and lifecycle management.
-
-**File:** `backend/src/server.ts`
-
-```typescript
-app.post('/submit-intent', async (req, res) => {
-    // 1. Validate intent fields
-    // 2. Add to OrderBook
-    // 3. If matched → Execute via Yellow Client
-    // 4. Return status (PENDING | MATCHED)
-});
-```
-
-### 5. Deployment Script (Contracts)
-
-Foundry script for deploying ShadowHook to Sepolia with proper hook address mining.
-
-**File:** `contracts/script/DeployHook.s.sol`
-
-```solidity
-contract DeployHook is Script {
-    // Sepolia PoolManager
-    IPoolManager constant POOL_MANAGER = IPoolManager(0xE03A1074c86CFeDd5C142C4F04F1a1536e203543);
+class OrderBook {
+    // Price ratio: 1 ETH = 1000 SHADOW
+    private readonly ETH_TO_SHADOW_RATIO = 1000n;
     
-    function run() external {
-        address solver = vm.envAddress("SOLVER_ADDRESS");
-        
-        // Mine salt for beforeSwap flag (0x80)
-        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG);
-        (address hookAddr, bytes32 salt) = HookMiner.find(
-            CREATE2_DEPLOYER, flags, creationCode, constructorArgs
-        );
-        
-        // Deploy with mined salt
-        hook = new ShadowHook{salt: salt}(POOL_MANAGER, solver);
-        
-        // Initialize pool
-        POOL_MANAGER.initialize(poolKey, SQRT_PRICE_1_1);
+    private amountsMatch(ethAmount: bigint, shadowAmount: bigint): boolean {
+        const expectedShadow = ethAmount * this.ETH_TO_SHADOW_RATIO;
+        const tolerance = expectedShadow / 20n; // 5% tolerance
+        return diff <= tolerance;
+    }
+    
+    async addIntent(newIntent: Intent): Promise<MatchResult> {
+        for (const [id, existingIntent] of this.orders) {
+            // Check for inverse pair with price-aware matching
+            if (this.isInversePair(newIntent, existingIntent) && 
+                this.amountsMatch(ethAmount, shadowAmount)) {
+                // Match found! Execute settlement
+                const settlements = await settler.executeMatch(newIntent, existingIntent);
+                return { matched: true, settlements };
+            }
+        }
+        this.orders.set(newIntent.id, newIntent);
+        return { matched: false };
     }
 }
 ```
 
-**Key Features:**
-- ✅ Uses `HookMiner` from v4-periphery for CREATE2 salt mining
-- ✅ Ensures hook address has correct `beforeSwap` flag (bit 7)
-- ✅ Deploys mock token and initializes ETH/Token pool
-- ✅ Outputs Pool Key for backend configuration
+### 5. Frontend SwapCard Component
 
-### 6. Frontend dApp (React + Vite)
+React component for submitting swap intents with wallet integration.
 
-A high-performance, minimal UI for intent submission with wallet connection and encrypted intent support.
-
-**File:** `frontend/src/Web3Provider.tsx`
+**File:** `frontend/src/components/SwapCard.tsx`
 
 ```typescript
-// Wagmi v2 + React Query configuration for Sepolia
-export const wagmiConfig = createConfig({
-  chains: [sepolia],
-  connectors: [
-    injected(),           // MetaMask & browser wallets
-    walletConnect({...}), // Mobile wallets via QR
-    coinbaseWallet({...}),
-  ],
-  transports: {
-    [sepolia.id]: http(),
-  },
-});
+function SwapCard() {
+    const { submitIntent, isPending } = useShadowSubmit();
+    const { approve, allowance } = useToken(tokenAddress, ROUTER_ADDRESS);
+    
+    const handleSwap = async () => {
+        // 1. Approve router if needed (for token swaps)
+        if (needsApproval) await approve(amount);
+        
+        // 2. Submit intent to backend
+        await submitIntent({
+            tokenIn: selectedToken.address,
+            tokenOut: outputToken.address,
+            amountIn: parseUnits(amount, 18).toString(),
+            minAmountOut: "0",
+        });
+    };
+}
 ```
+---
 
-**File:** `frontend/src/utils/crypto.ts`
+## 🚀 Live Deployment (Sepolia Testnet)
 
-```typescript
-// Derive deterministic key from wallet signature
-export async function generateKeyFromSignature(signature: string): Promise<string>;
+### Current Contract Addresses
 
-// AES-GCM encryption for private intents
-export async function encryptIntent(data: object, key: string): Promise<string>;
+| Contract | Address | Etherscan |
+|----------|---------|-----------|
+| **ShadowHook** | `0xE0dc953A2136a4cb6A9EEB3cbD44296969D14080` | [View](https://sepolia.etherscan.io/address/0xE0dc953A2136a4cb6A9EEB3cbD44296969D14080) |
+| **ShadowRouter** | `0x4D54281B30b6D708A46d5dC64762288aF3748f81` | [View](https://sepolia.etherscan.io/address/0x4D54281B30b6D708A46d5dC64762288aF3748f81) |
+| **SHADOW Token** | `0xf4442339bA89BC5DA1Cf2304Af163D1b82CF0751` | [View](https://sepolia.etherscan.io/address/0xf4442339bA89BC5DA1Cf2304Af163D1b82CF0751) |
+| **LiquidityHelper** | `0x58f49493c477E7C4c2C2866896c5B1b904184c4E` | [View](https://sepolia.etherscan.io/address/0x58f49493c477E7C4c2C2866896c5B1b904184c4E) |
+| **Solver Wallet** | `0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3` | [View](https://sepolia.etherscan.io/address/0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3) |
 
-// Decrypt intents (for status display)
-export async function decryptIntent<T>(encryptedData: string, key: string): Promise<T>;
-```
+### Pool Configuration
 
-**Key Features:**
-- 🔐 **Web Crypto API** - Native AES-GCM encryption (no heavy libs)
-- 🔑 **HKDF Key Derivation** - Deterministic keys from wallet signatures
-- ⚡ **Wagmi v2** - Modern React hooks for Ethereum
-- 🎨 **Tailwind CSS** - Utility-first styling
-- 📱 **Multi-wallet** - MetaMask, WalletConnect, Coinbase Wallet
+| Parameter | Value |
+|-----------|-------|
+| **Pool ID** | `0xdad314d2c21833ecf196233147cca1d22adb13ff3d3306772022f8b9425fb788` |
+| **Currency0** | ETH (`0x0000000000000000000000000000000000000000`) |
+| **Currency1** | SHADOW (`0xf4442339bA89BC5DA1Cf2304Af163D1b82CF0751`) |
+| **Fee** | 0.3% (3000) |
+| **Tick Spacing** | 60 |
+| **Price** | 1 ETH = 1000 SHADOW |
+| **Initial Tick** | 69081 |
+
+### Uniswap v4 Sepolia Addresses
+
+| Contract | Address |
+|----------|---------|
+| PoolManager | `0xE03A1074c86CFeDd5C142C4F04F1a1536e203543` |
+| PositionManager | `0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4` |
+| Universal Router | `0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b` |
+| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
 
 ---
 
@@ -302,231 +363,95 @@ export async function decryptIntent<T>(encryptedData: string, key: string): Prom
 
 - **Node.js** 18+ 
 - **Foundry** (for smart contracts)
-- **Private Key** with Sepolia ETH (for Yellow Network auth)
-- **WalletConnect Project ID** (optional, for mobile wallet support)
+- **Private Key** with Sepolia ETH (for solver operations)
+- **MetaMask** or compatible wallet
 
-### Quick Start (All Components)
+### Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/shadowswap.git
+git clone https://github.com/shreyas-sovani/shadowswap.git
 cd shadowswap
 
 # 1. Setup Frontend
 cd frontend
 npm install
-cp .env.example .env.local
-# Edit .env.local with your RPC URL and WalletConnect ID
 npm run dev  # Starts on http://localhost:5173
 
 # 2. Setup Backend (new terminal)
 cd backend
 npm install
-cp .env.example .env
-# Edit .env with your PRIVATE_KEY and ALCHEMY_RPC_URL
-npm run dev  # Starts on http://localhost:3000
+# Set SOLVER_PRIVATE_KEY in .env
+npm run server  # Starts on http://localhost:3000
 
-# 3. Setup Contracts (new terminal)
-cd contracts
-forge install
-forge build
-forge test -vvv  # Run tests (7/7 passing)
+# 3. Test a Swap!
+# - Open http://localhost:5173 in two browser windows
+# - Connect different wallets in each
+# - User A: Swap 1 SHADOW → ETH
+# - User B: Swap 0.001 ETH → SHADOW
+# - Watch them match and settle on-chain!
 ```
 
-### Frontend Setup
+### Environment Variables
 
+**Backend (`backend/.env`):**
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env.local
-
-# Edit .env.local:
-# VITE_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-# VITE_WALLETCONNECT_PROJECT_ID=your_project_id
-
-# Development server
-npm run dev
-
-# Production build
-npm run build
+SOLVER_PRIVATE_KEY=0x...          # Backend solver wallet private key
+ALCHEMY_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
 ```
 
-**Frontend Stack:**
-- ⚡ **Vite** - Fast dev server and build
-- ⚛️ **React 18** - UI framework
-- 🔷 **TypeScript** - Type safety
-- 🎨 **Tailwind CSS** - Styling
-- 🔗 **Wagmi v2** - Ethereum hooks
-- 🔍 **viem** - Ethereum client
-- 📊 **React Query** - Data fetching
-
-### Backend Setup
-
-```bash
-cd backend
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your PRIVATE_KEY and ALCHEMY_RPC_URL
-
-# Run development server
-npm run dev
-
-# Verify Yellow Network connection
-npm run auth
-```
-
-### Smart Contracts Setup
-
-```bash
-cd contracts
-
-# Install Foundry (if not installed)
-curl -L https://foundry.paradigm.xyz | bash
-foundryup
-
-# Install dependencies
-forge install
-
-# Build contracts
-forge build
-
-# Run tests
-forge test -vvv
-```
-
-**Test Results (7/7 Passing):**
-```
-[PASS] test_Allow_Solver()
-[PASS] test_HookPermissions()
-[PASS] test_PoolManager()
-[PASS] test_RevertIf_AnotherUser()
-[PASS] test_RevertIf_PublicUser()
-[PASS] test_SolverAddress()
-[PASS] testFuzz_RevertIf_NotSolver(uint256)
-```
-
-### Deploy to Sepolia
-
-The deployment script mines a CREATE2 salt to ensure the hook address has the correct `beforeSwap` flag (bit 7 = `0x80`).
+### Deployment (For Redeployment)
 
 ```bash
 cd contracts
 
 # Set environment variables
-export SEPOLIA_RPC_URL="https://sepolia.infura.io/v3/YOUR_API_KEY"
+export SEPOLIA_RPC_URL="https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY"
 export PRIVATE_KEY="your_deployer_private_key"
 export SOLVER_ADDRESS="your_backend_solver_wallet_address"
-export ETHERSCAN_API_KEY="your_etherscan_api_key"  # For verification
 
-# Deploy and verify on Sepolia
-forge script script/DeployHook.s.sol:DeployHook \
+# Deploy all contracts
+forge script script/DeployAll.s.sol:DeployAll \
   --rpc-url $SEPOLIA_RPC_URL \
   --private-key $PRIVATE_KEY \
   --broadcast \
-  --verify \
+  -vvvv
+
+# Add liquidity
+forge script script/DeployAndAddLiquidity.s.sol:DeployAndAddLiquidity \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
   -vvvv
 ```
-
-**Deployment Script Features:**
-- 🔍 Mines CREATE2 salt for correct hook address flags using `HookMiner`
-- 🪙 Deploys MockERC20 token for testing (replace with real tokens for production)
-- 🏊 Initializes ETH/Token pool at 1:1 price ratio
-- 📋 Outputs all Pool Key parameters for backend configuration
-
-### After Deployment: Auto-Saved Config
-
-The deployment script automatically saves all addresses to `frontend/src/config.json`:
-
-```json
-{
-  "hookAddress": "0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080",
-  "mockTokenAddress": "0x77E725B2F1096Df61A7BC594632c1a1f2799417C",
-  "solverAddress": "0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3",
-  "poolKey": {
-    "currency0": "0x0000000000000000000000000000000000000000",
-    "currency1": "0x77E725B2F1096Df61A7BC594632c1a1f2799417C",
-    "fee": 3000,
-    "tickSpacing": 60
-  }
-}
-```
-
-**Current Sepolia Deployment (Feb 2026):**
-
-| Contract | Address |
-|----------|---------|
-| ShadowHook | `0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080` |
-| MockToken (SHADOW) | `0x77E725B2F1096Df61A7BC594632c1a1f2799417C` |
-| Solver | `0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3` |
-
-**Sepolia Contract Addresses (Uniswap v4):**
-
-| Contract | Address |
-|----------|---------|
-| PoolManager | `0xE03A1074c86CFeDd5C142C4F04F1a1536e203543` |
-| PositionManager | `0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4` |
-| Universal Router | `0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b` |
-| PoolSwapTest | `0x9b6b46e2c869aa39918db7f52f5557fe577b6eee` |
-| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
-
 ---
 
 ## 📋 Intent Format
 
 ```typescript
 interface Intent {
-    id: string;           // UUID
-    userAddress: string;  // User's wallet address
+    id: string;           // UUID v4
+    userAddress: string;  // User's wallet address (0x...)
     tokenIn: string;      // Token to sell (address)
     tokenOut: string;     // Token to buy (address)
-    amountIn: string;     // Amount to sell (BigInt string)
-    minAmountOut: string; // Minimum amount to receive (BigInt string)
+    amountIn: string;     // Amount to sell (wei, as string)
+    minAmountOut: string; // Minimum amount to receive (wei, as string)
     status: 'PENDING' | 'MATCHED' | 'SETTLED';
 }
 ```
 
-### Intent Encryption Flow (Frontend)
-
-The frontend encrypts intents before submission for additional privacy:
-
-```typescript
-// 1. User signs a message to derive encryption key
-const signature = await signMessage({ message: 'ShadowSwap Auth' });
-const encryptionKey = await generateKeyFromSignature(signature);
-
-// 2. Intent data is encrypted with AES-GCM
-const intent = { tokenIn, tokenOut, amountIn, minAmountOut, ... };
-const encryptedIntent = await encryptIntent(intent, encryptionKey);
-
-// 3. Submit encrypted intent to backend
-await submitIntent({ id, userAddress, encryptedData: encryptedIntent });
-```
-
-**Encryption Details:**
-- **Key Derivation**: HKDF with SHA-256 from wallet signature
-- **Encryption**: AES-256-GCM with random 12-byte IV
-- **Format**: Base64-encoded (URL-safe)
-
-### Example Intent Submission
+### Example: Swap 1 SHADOW for ETH
 
 ```bash
 curl -X POST http://localhost:3000/submit-intent \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "intent-001",
-    "userAddress": "0x1234...",
-    "tokenIn": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    "tokenOut": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    "amountIn": "1000000000",
-    "minAmountOut": "500000000000000000"
+    "id": "abc123",
+    "userAddress": "0x97e6c2b90492155bFA552FE348A6192f4fB1F163",
+    "tokenIn": "0xf4442339bA89BC5DA1Cf2304Af163D1b82CF0751",
+    "tokenOut": "0x0000000000000000000000000000000000000000",
+    "amountIn": "1000000000000000000",
+    "minAmountOut": "0"
   }'
 ```
 
@@ -541,20 +466,22 @@ curl -X POST http://localhost:3000/submit-intent \
 | **Intent Submission** | Private API, not public mempool |
 | **Order Matching** | P2P matching in backend, no on-chain visibility |
 | **State Coordination** | Yellow Network state channels (off-chain) |
-| **Settlement** | Uniswap v4 Hook restricts to solver-only |
+| **Settlement** | Uniswap v4 Hook restricts swaps to Router only |
+| **Fund Transfer** | Router uses transferFrom (users approve Router) |
 
 ### Trust Assumptions
 
 1. **Solver Honesty**: Users trust the solver to execute matched intents fairly
 2. **Yellow Network**: Clearnode acts as honest intermediary for state channels
 3. **Hook Integrity**: Once deployed, the solver address is immutable
+4. **Router Security**: Only the whitelisted solver wallet can call Router.executeMatch()
 
-### Hook Access Control
+### Access Control Flow
 
 ```
 Public User → PoolManager → ShadowHook._beforeSwap() → REVERT (OnlySolver)
-                              ↑
-Solver → PoolManager → ShadowHook._beforeSwap() → SUCCESS ✓
+
+Solver Wallet → ShadowRouter.executeMatch() → PoolManager → ShadowHook._beforeSwap() → SUCCESS ✓
 ```
 
 ---
@@ -564,17 +491,22 @@ Solver → PoolManager → ShadowHook._beforeSwap() → SUCCESS ✓
 ### Running Tests
 
 ```bash
-# Backend tests
-cd backend && npm test
-
 # Contract tests (with verbose output)
 cd contracts && forge test -vvv
 
 # Contract tests with gas report
 cd contracts && forge test --gas-report
+```
 
-# Fuzz testing with more runs
-cd contracts && forge test --fuzz-runs 1000
+**Test Results (7/7 Passing):**
+```
+[PASS] test_Allow_Solver()
+[PASS] test_HookPermissions()
+[PASS] test_PoolManager()
+[PASS] test_RevertIf_AnotherUser()
+[PASS] test_RevertIf_PublicUser()
+[PASS] test_SolverAddress()
+[PASS] testFuzz_RevertIf_NotSolver(uint256)
 ```
 
 ### Foundry Configuration
@@ -603,39 +535,40 @@ optimizer_runs = 200
 ### Completed ✅
 
 - [x] **Phase 1**: Yellow Network Research & Documentation
-- [x] **Phase 2**: Yellow Network Auth + Channel Creation (`7dfe590`)
-- [x] **Phase 3**: Express Server & Matcher Core (`f919033`)
-- [x] **Phase 4**: Uniswap v4 Hook (ShadowHook.sol) (`cc64abd`)
+- [x] **Phase 2**: Yellow Network Auth + Channel Creation
+- [x] **Phase 3**: Express Server & Matcher Core
+- [x] **Phase 4**: Uniswap v4 Hook (ShadowHook.sol)
 - [x] **Phase 5**: Comprehensive Foundry Tests (7/7 passing)
-- [x] **Phase 5.5**: Sepolia Deployment Script with CREATE2 Salt Mining (`6166f45`)
-- [x] **Phase 5.5.1**: Auto-save deployment addresses to frontend (`e4ecb55`)
-  - Updated `foundry.toml` with `fs_permissions` for file writes
-  - `DeployHook.s.sol` writes `config.json` automatically via `vm.writeFile()`
-  - Deployed to Sepolia: Hook `0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080`
-- [x] **Phase 6**: Frontend Setup & Logic Layer (`5606b91`)
+- [x] **Phase 5.5**: Sepolia Deployment Script with CREATE2 Salt Mining
+- [x] **Phase 6**: Frontend Setup & Logic Layer
   - React + Vite + TypeScript scaffold
   - Wagmi v2 + React Query Web3 provider
   - Tailwind CSS styling
-  - AES-GCM encryption utilities (Web Crypto API)
-  - Backend API client
-  - Wallet connection UI
-
-### In Progress 🔄
-
-- [ ] **Phase 7**: Frontend UI Components
-  - Swap panel with token selection
-  - Intent status tracking
-  - Transaction history
-- [ ] Backend integration with deployed hook
-- [ ] End-to-end intent flow testing
+  - AES-GCM encryption utilities
+- [x] **Phase 7**: Frontend UI Components
+  - SwapCard component with token selection
+  - Token balance & allowance hooks
+  - Intent submission flow
+- [x] **Phase 8**: ShadowRouter & Settlement System
+  - ShadowRouter.sol with IUnlockCallback
+  - AddLiquidity.s.sol script
+  - DeployAll.s.sol master deployment
+- [x] **Phase 9**: Full Integration & Testing
+  - Deployed all contracts to Sepolia
+  - Updated frontend to approve Router
+  - Price-aware order matching (1 ETH = 1000 SHADOW)
+  - On-chain settler engine
+  - **End-to-end swaps working!** 🎉
 
 ### Future Roadmap 🗺️
 
-- [ ] Production Yellow Network integration
+- [ ] Production Yellow Network integration (mainnet Clearnode)
 - [ ] Mainnet deployment
+- [ ] Multi-token support
 - [ ] Decentralized solver network
 - [ ] Cross-chain intent support
 - [ ] Mobile-responsive design
+- [ ] Intent status tracking UI
 
 ---
 
@@ -647,26 +580,21 @@ optimizer_runs = 200
 - **Styling**: Tailwind CSS 4.x
 - **Web3**: Wagmi v2 + viem
 - **State**: @tanstack/react-query
-- **Icons**: lucide-react
-- **Encryption**: Web Crypto API (native)
+- **Encryption**: Web Crypto API (native AES-GCM)
 
 ### Backend
 - **Runtime**: Node.js 18+ with TypeScript
-- **Framework**: Express.js 5.x
-- **Ethereum**: viem (wallet client, public client)
-- **Yellow Network**: @erc7824/nitrolite SDK
-- **WebSocket**: ws
+- **Framework**: Express.js
+- **Ethereum**: viem 2.45+ (wallet client, public client)
+- **Yellow Network**: WebSocket client for Clearnode
+- **Settlement**: ShadowRouter contract calls
 
 ### Smart Contracts
 - **Language**: Solidity 0.8.26
 - **Framework**: Foundry
 - **DEX**: Uniswap v4 (v4-core + v4-periphery)
 - **EVM Target**: Cancun (transient storage)
-
-### Yellow Network (Nitrolite Protocol)
-- **State Channels**: Off-chain transfers with on-chain settlement
-- **Session Keys**: Ephemeral keys for secure, gasless operations
-- **Clearnode**: Unified ledger for cross-chain abstraction
+- **Deployment**: CREATE2 with HookMiner for address flags
 
 ---
 

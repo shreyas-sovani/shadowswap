@@ -7,6 +7,10 @@ export interface MatchResult {
     settlements?: [SettlementResult, SettlementResult];
 }
 
+// Price ratio: 1 ETH = 1000 SHADOW
+const ETH_TO_SHADOW_RATIO = 1000n;
+const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 export class OrderBook {
     private orders: Map<string, Intent>;
 
@@ -15,10 +19,29 @@ export class OrderBook {
     }
 
     /**
+     * Check if two amounts match at the current price ratio
+     * ethAmount * 1000 should equal shadowAmount (with 5% tolerance)
+     */
+    private amountsMatch(ethAmount: bigint, shadowAmount: bigint): boolean {
+        // Calculate expected: ethAmount * 1000 = shadowAmount
+        const expectedShadow = ethAmount * ETH_TO_SHADOW_RATIO;
+        
+        // Allow 5% tolerance for rounding
+        const tolerance = expectedShadow / 20n; // 5%
+        const diff = expectedShadow > shadowAmount 
+            ? expectedShadow - shadowAmount 
+            : shadowAmount - expectedShadow;
+        
+        const matches = diff <= tolerance;
+        console.log(`[OrderBook] Price check: ${ethAmount} ETH * 1000 = ${expectedShadow} vs ${shadowAmount} SHADOW (diff: ${diff}, tolerance: ${tolerance}, match: ${matches})`);
+        return matches;
+    }
+
+    /**
      * Add an intent and check for instant matches.
-     * Simple "Exact Match" Logic:
+     * Price-aware matching:
      * 1. Opposite pair (TokenA->TokenB vs TokenB->TokenA)
-     * 2. AmountIn >= Match.MinAmountOut (Simplified to Equality for now)
+     * 2. Amounts match at 1 ETH = 1000 SHADOW ratio (with tolerance)
      * 
      * If a match is found, settlements are executed automatically.
      */
@@ -28,24 +51,32 @@ export class OrderBook {
         for (const [existingId, existingIntent] of this.orders.entries()) {
             // Check for inverse pair
             if (
-                existingIntent.tokenIn === newIntent.tokenOut &&
-                existingIntent.tokenOut === newIntent.tokenIn &&
+                existingIntent.tokenIn.toLowerCase() === newIntent.tokenOut.toLowerCase() &&
+                existingIntent.tokenOut.toLowerCase() === newIntent.tokenIn.toLowerCase() &&
                 existingIntent.status === 'PENDING'
             ) {
-                // Simplified Constraint: Check if amounts match exactly (as per task requirement)
-                // In a real system, we'd check prices and slippage.
-                // For this task: "Check if amountIn matches roughly (simplify to exact match for now)"
-
-                // Check if New User gives enough for Existing matched request
-                // AND Existing User gives enough for New matched request
-                // (Assuming 1:1 value for this simplified mock or strictly explicit amounts)
-
-                // Since we are doing "exact match for now", let's compare the string values
-                // A match happens if B wants exactly what A offers, and vice versa.
-                if (
-                    existingIntent.amountIn === newIntent.minAmountOut &&
-                    newIntent.amountIn === existingIntent.minAmountOut
-                ) {
+                // Price-aware matching at 1 ETH = 1000 SHADOW
+                const newAmountIn = BigInt(newIntent.amountIn);
+                const existingAmountIn = BigInt(existingIntent.amountIn);
+                
+                let ethAmount: bigint;
+                let shadowAmount: bigint;
+                
+                // Determine which is ETH and which is SHADOW
+                if (newIntent.tokenIn.toLowerCase() === ETH_ADDRESS) {
+                    // New intent: ETH -> SHADOW
+                    // Existing intent: SHADOW -> ETH
+                    ethAmount = newAmountIn;
+                    shadowAmount = existingAmountIn;
+                } else {
+                    // New intent: SHADOW -> ETH
+                    // Existing intent: ETH -> SHADOW
+                    shadowAmount = newAmountIn;
+                    ethAmount = existingAmountIn;
+                }
+                
+                // Check if amounts match at the price ratio
+                if (this.amountsMatch(ethAmount, shadowAmount)) {
                     console.log(`[OrderBook] ✅ Match found: ${newIntent.id} <> ${existingId}`);
 
                     // Remove the matched order from the book

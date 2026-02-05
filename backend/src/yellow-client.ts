@@ -216,23 +216,9 @@ export async function setupClient(config?: Partial<ClearnodeConfig>): Promise<Ye
       console.log(`  - Swap: ${intentB.amountIn} ${intentB.tokenIn} → ${intentB.tokenOut}`);
       console.log(`[YellowClient] ───────────────────────────────────────────`);
       
-      // In production, this would:
-      // 1. Use a custom ShadowSwapRouter contract
-      // 2. Pull tokens from both users (who approved the router)
-      // 3. Execute atomic swap through PoolManager
-      // 4. Settle tokens to each user
-      
-      // For now, we log the matched trade for demo purposes
-      // Real execution requires:
-      // - Liquidity in the pool
-      // - A router contract that can transferFrom users
-      // - ETH wrapped as WETH for the swap
-      
-      console.log(`[YellowClient] ⚠️  DEMO MODE: Trade recorded but not executed on-chain`);
-      console.log(`[YellowClient] To enable real execution:`);
-      console.log(`  1. Add liquidity to the pool`);
-      console.log(`  2. Deploy ShadowSwapRouter with transferFrom permissions`);
-      console.log(`  3. Users approve the router contract`);
+      // Trade has already been executed on-chain by the Settler
+      // This function is called for Yellow Network state channel updates
+      console.log(`[YellowClient] ✅ Trade pair recorded for Yellow Network state channel`);
       console.log(`[YellowClient] ═══════════════════════════════════════════\n`);
       
       // Mark intents as settled in our records
