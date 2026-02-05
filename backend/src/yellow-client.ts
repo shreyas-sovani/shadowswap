@@ -203,17 +203,41 @@ export async function setupClient(config?: Partial<ClearnodeConfig>): Promise<Ye
     publicClient,
     sendRequest,
     executeTrade: async (intentA: any, intentB: any) => {
-      // MOCK: In a real implementation, this would involve:
-      // 1. Creating a multi-party atomic swap or
-      // 2. Executing two transfers via the Clearnode
-
-      // For now, per requirements, we just log the trade execution.
-      // We assume the channel ID is global or derived from the intents.
-
-      console.log(`\n[YellowClient] MOCK: Executing Trade on Channel`);
-      console.log(`  - Intent A: ${intentA.id} (${intentA.amountIn} ${intentA.tokenIn} -> ${intentA.tokenOut})`);
-      console.log(`  - Intent B: ${intentB.id} (${intentB.amountIn} ${intentB.tokenIn} -> ${intentB.tokenOut})`);
-      console.log(`[YellowClient] Trade Submitted successfully (Mocked).\n`);
+      console.log(`\n[YellowClient] ═══════════════════════════════════════════`);
+      console.log(`[YellowClient] MATCHED TRADE EXECUTION`);
+      console.log(`[YellowClient] ═══════════════════════════════════════════`);
+      console.log(`[YellowClient] Intent A:`);
+      console.log(`  - ID: ${intentA.id}`);
+      console.log(`  - User: ${intentA.userAddress}`);
+      console.log(`  - Swap: ${intentA.amountIn} ${intentA.tokenIn} → ${intentA.tokenOut}`);
+      console.log(`[YellowClient] Intent B:`);
+      console.log(`  - ID: ${intentB.id}`);
+      console.log(`  - User: ${intentB.userAddress}`);
+      console.log(`  - Swap: ${intentB.amountIn} ${intentB.tokenIn} → ${intentB.tokenOut}`);
+      console.log(`[YellowClient] ───────────────────────────────────────────`);
+      
+      // In production, this would:
+      // 1. Use a custom ShadowSwapRouter contract
+      // 2. Pull tokens from both users (who approved the router)
+      // 3. Execute atomic swap through PoolManager
+      // 4. Settle tokens to each user
+      
+      // For now, we log the matched trade for demo purposes
+      // Real execution requires:
+      // - Liquidity in the pool
+      // - A router contract that can transferFrom users
+      // - ETH wrapped as WETH for the swap
+      
+      console.log(`[YellowClient] ⚠️  DEMO MODE: Trade recorded but not executed on-chain`);
+      console.log(`[YellowClient] To enable real execution:`);
+      console.log(`  1. Add liquidity to the pool`);
+      console.log(`  2. Deploy ShadowSwapRouter with transferFrom permissions`);
+      console.log(`  3. Users approve the router contract`);
+      console.log(`[YellowClient] ═══════════════════════════════════════════\n`);
+      
+      // Mark intents as settled in our records
+      intentA.status = 'SETTLED';
+      intentB.status = 'SETTLED';
 
       return Promise.resolve();
     },

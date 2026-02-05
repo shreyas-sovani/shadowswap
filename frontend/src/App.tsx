@@ -1,5 +1,6 @@
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { Moon, Shield, Zap } from 'lucide-react';
+import { SwapCard } from './components/SwapCard';
 
 function App() {
   const { address, isConnected } = useAccount();
@@ -42,50 +43,43 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center max-w-2xl mx-auto">
+      <main className="container mx-auto px-4 py-12">
+        {/* Hero Section */}
+        <div className="text-center max-w-2xl mx-auto mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
             MEV-Protected Swaps
           </h1>
-          <p className="text-xl text-gray-400 mb-8">
+          <p className="text-xl text-gray-400">
             Trade without fear. Your intents are private.
           </p>
+        </div>
 
-          {/* Feature Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-            <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700">
-              <Shield className="w-10 h-10 text-purple-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-white mb-2">MEV Protected</h3>
-              <p className="text-gray-400 text-sm">
-                Intents never hit the public mempool. No front-running.
-              </p>
-            </div>
-            
-            <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700">
-              <Zap className="w-10 h-10 text-yellow-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-white mb-2">Instant Matching</h3>
-              <p className="text-gray-400 text-sm">
-                Yellow Network state channels for off-chain coordination.
-              </p>
-            </div>
-            
-            <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700">
-              <Moon className="w-10 h-10 text-blue-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-white mb-2">Hook-Protected</h3>
-              <p className="text-gray-400 text-sm">
-                Uniswap v4 Hook ensures only the solver can execute.
-              </p>
-            </div>
+        {/* Swap Card */}
+        <SwapCard />
+
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 max-w-4xl mx-auto">
+          <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700">
+            <Shield className="w-10 h-10 text-purple-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-white mb-2 text-center">MEV Protected</h3>
+            <p className="text-gray-400 text-sm text-center">
+              Intents never hit the public mempool. No front-running.
+            </p>
           </div>
-
-          {/* Status */}
-          <div className="mt-12 p-6 bg-gray-800/30 rounded-xl border border-gray-700">
-            <p className="text-gray-400">
-              {isConnected ? (
-                <span className="text-green-400">✓ Wallet connected. Swap UI coming soon...</span>
-              ) : (
-                <span>Connect your wallet to get started</span>
-              )}
+          
+          <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700">
+            <Zap className="w-10 h-10 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-white mb-2 text-center">Instant Matching</h3>
+            <p className="text-gray-400 text-sm text-center">
+              Yellow Network state channels for off-chain coordination.
+            </p>
+          </div>
+          
+          <div className="p-6 bg-gray-800/50 rounded-xl border border-gray-700">
+            <Moon className="w-10 h-10 text-blue-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-white mb-2 text-center">Hook-Protected</h3>
+            <p className="text-gray-400 text-sm text-center">
+              Uniswap v4 Hook ensures only the solver can execute.
             </p>
           </div>
         </div>

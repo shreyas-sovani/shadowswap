@@ -6,9 +6,10 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx src/check-conn.ts",
+    "server": "tsx src/server.ts",
     "auth": "tsx src/verify-auth.ts",
     "build": "tsc",
-    "start": "node dist/check-conn.js"
+    "start": "node dist/server.js"
   },
   "keywords": [
     "mev",
