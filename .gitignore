@@ -1,26 +1,62 @@
-# Dependencies
-node_modules/
+# ============================================
+# ShadowSwap Root .gitignore
+# ============================================
 
-# Build outputs
-dist/
-build/
+# ============ OS Files ============
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Environment files
+# ============ IDE / Editor ============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ============ Environment ============
 .env
 .env.local
 .env.*.local
+*.env
 
-# IDE
-.vscode/
-.idea/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
+# ============ Backend (Node.js) ============
+node_modules/
+dist/
+build/
 *.log
-npm-debug.log*
+server.log
+.cache/
+coverage/
+
+# ============ Contracts (Foundry) ============
+# Build artifacts
+contracts/out/
+contracts/cache/
+contracts/cache_forge/
+
+# Dependencies - use `forge install` to restore
+contracts/lib/
+
+# Broadcast files (deployment transactions)
+contracts/broadcast/
 
 # Coverage
-coverage/
+contracts/lcov.info
+
+# ============ Logs ============
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============ Misc ============
+*.bak
+*.tmp
+*.temp
