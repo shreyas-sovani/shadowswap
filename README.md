@@ -5,6 +5,8 @@
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.26-blue)](https://soliditylang.org/)
 [![Uniswap v4](https://img.shields.io/badge/Uniswap-v4-ff007a)](https://docs.uniswap.org/)
 [![Yellow Network](https://img.shields.io/badge/Yellow-Network-yellow)](https://yellow.org/)
+[![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 ---
@@ -81,6 +83,22 @@ User → Private Intent → Solver Matches P2P → Yellow State Channel → Hook
 ```
 shadowswap/
 ├── README.md                    # This file
+│
+├── frontend/                    # React + Vite + TypeScript dApp
+│   ├── package.json             # Dependencies (wagmi, viem, tailwind)
+│   ├── vite.config.ts           # Vite + Tailwind configuration
+│   ├── .env.example             # Environment template
+│   └── src/
+│       ├── main.tsx             # App entry (Web3Provider wrapper)
+│       ├── App.tsx              # Main UI component
+│       ├── Web3Provider.tsx     # Wagmi + React Query setup
+│       ├── config.ts            # Backend URL, Hook address, Pool Key
+│       ├── types.ts             # Intent, Token, API types
+│       └── utils/
+│           ├── index.ts         # Barrel exports
+│           ├── crypto.ts        # AES-GCM encryption, key derivation
+│           └── api.ts           # Backend API client
+│
 ├── backend/                     # Node.js/TypeScript solver backend
 │   ├── package.json             # Dependencies (express, viem, ws, nitrolite)
 │   ├── tsconfig.json            # TypeScript configuration
@@ -235,6 +253,47 @@ contract DeployHook is Script {
 - ✅ Deploys mock token and initializes ETH/Token pool
 - ✅ Outputs Pool Key for backend configuration
 
+### 6. Frontend dApp (React + Vite)
+
+A high-performance, minimal UI for intent submission with wallet connection and encrypted intent support.
+
+**File:** `frontend/src/Web3Provider.tsx`
+
+```typescript
+// Wagmi v2 + React Query configuration for Sepolia
+export const wagmiConfig = createConfig({
+  chains: [sepolia],
+  connectors: [
+    injected(),           // MetaMask & browser wallets
+    walletConnect({...}), // Mobile wallets via QR
+    coinbaseWallet({...}),
+  ],
+  transports: {
+    [sepolia.id]: http(),
+  },
+});
+```
+
+**File:** `frontend/src/utils/crypto.ts`
+
+```typescript
+// Derive deterministic key from wallet signature
+export async function generateKeyFromSignature(signature: string): Promise<string>;
+
+// AES-GCM encryption for private intents
+export async function encryptIntent(data: object, key: string): Promise<string>;
+
+// Decrypt intents (for status display)
+export async function decryptIntent<T>(encryptedData: string, key: string): Promise<T>;
+```
+
+**Key Features:**
+- 🔐 **Web Crypto API** - Native AES-GCM encryption (no heavy libs)
+- 🔑 **HKDF Key Derivation** - Deterministic keys from wallet signatures
+- ⚡ **Wagmi v2** - Modern React hooks for Ethereum
+- 🎨 **Tailwind CSS** - Utility-first styling
+- 📱 **Multi-wallet** - MetaMask, WalletConnect, Coinbase Wallet
+
 ---
 
 ## 🚀 Getting Started
@@ -244,6 +303,66 @@ contract DeployHook is Script {
 - **Node.js** 18+ 
 - **Foundry** (for smart contracts)
 - **Private Key** with Sepolia ETH (for Yellow Network auth)
+- **WalletConnect Project ID** (optional, for mobile wallet support)
+
+### Quick Start (All Components)
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/shadowswap.git
+cd shadowswap
+
+# 1. Setup Frontend
+cd frontend
+npm install
+cp .env.example .env.local
+# Edit .env.local with your RPC URL and WalletConnect ID
+npm run dev  # Starts on http://localhost:5173
+
+# 2. Setup Backend (new terminal)
+cd backend
+npm install
+cp .env.example .env
+# Edit .env with your PRIVATE_KEY and ALCHEMY_RPC_URL
+npm run dev  # Starts on http://localhost:3000
+
+# 3. Setup Contracts (new terminal)
+cd contracts
+forge install
+forge build
+forge test -vvv  # Run tests (7/7 passing)
+```
+
+### Frontend Setup
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env.local
+
+# Edit .env.local:
+# VITE_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+# VITE_WALLETCONNECT_PROJECT_ID=your_project_id
+
+# Development server
+npm run dev
+
+# Production build
+npm run build
+```
+
+**Frontend Stack:**
+- ⚡ **Vite** - Fast dev server and build
+- ⚛️ **React 18** - UI framework
+- 🔷 **TypeScript** - Type safety
+- 🎨 **Tailwind CSS** - Styling
+- 🔗 **Wagmi v2** - Ethereum hooks
+- 🔍 **viem** - Ethereum client
+- 📊 **React Query** - Data fetching
 
 ### Backend Setup
 
@@ -322,6 +441,25 @@ forge script script/DeployHook.s.sol:DeployHook \
 - 🏊 Initializes ETH/Token pool at 1:1 price ratio
 - 📋 Outputs all Pool Key parameters for backend configuration
 
+### After Deployment: Update Frontend Config
+
+After deploying the hook, update `frontend/src/config.ts` with the deployment output:
+
+```typescript
+// frontend/src/config.ts
+
+// Replace with actual deployed addresses from forge script output
+export const HOOK_ADDRESS = '0x...80'; // Must end with correct flag bits
+
+export const POOL_KEY = {
+  currency0: '0x0000000000000000000000000000000000000000', // ETH
+  currency1: '0x...', // Your deployed MockToken address
+  fee: 3000,
+  tickSpacing: 60,
+  hooks: '0x...80', // Same as HOOK_ADDRESS
+};
+```
+
 **Sepolia Contract Addresses (Uniswap v4):**
 
 | Contract | Address |
@@ -347,6 +485,28 @@ interface Intent {
     status: 'PENDING' | 'MATCHED' | 'SETTLED';
 }
 ```
+
+### Intent Encryption Flow (Frontend)
+
+The frontend encrypts intents before submission for additional privacy:
+
+```typescript
+// 1. User signs a message to derive encryption key
+const signature = await signMessage({ message: 'ShadowSwap Auth' });
+const encryptionKey = await generateKeyFromSignature(signature);
+
+// 2. Intent data is encrypted with AES-GCM
+const intent = { tokenIn, tokenOut, amountIn, minAmountOut, ... };
+const encryptedIntent = await encryptIntent(intent, encryptionKey);
+
+// 3. Submit encrypted intent to backend
+await submitIntent({ id, userAddress, encryptedData: encryptedIntent });
+```
+
+**Encryption Details:**
+- **Key Derivation**: HKDF with SHA-256 from wallet signature
+- **Encryption**: AES-256-GCM with random 12-byte IV
+- **Format**: Base64-encoded (URL-safe)
 
 ### Example Intent Submission
 
@@ -440,25 +600,45 @@ optimizer_runs = 200
 - [x] **Phase 3**: Express Server & Matcher Core (`f919033`)
 - [x] **Phase 4**: Uniswap v4 Hook (ShadowHook.sol)
 - [x] **Phase 5**: Comprehensive Foundry Tests (7/7 passing)
-- [x] **Phase 6**: Sepolia Deployment Script with CREATE2 Salt Mining
+- [x] **Phase 5.5**: Sepolia Deployment Script with CREATE2 Salt Mining
+- [x] **Phase 6**: Frontend Setup & Logic Layer
+  - React + Vite + TypeScript scaffold
+  - Wagmi v2 + React Query Web3 provider
+  - Tailwind CSS styling
+  - AES-GCM encryption utilities (Web Crypto API)
+  - Backend API client
+  - Wallet connection UI
 
 ### In Progress 🔄
 
+- [ ] **Phase 7**: Frontend UI Components
+  - Swap panel with token selection
+  - Intent status tracking
+  - Transaction history
 - [ ] Deploy ShadowHook to Sepolia testnet
 - [ ] Backend integration with deployed hook
-- [ ] Production Yellow Network integration
 - [ ] End-to-end intent flow testing
 
 ### Future Roadmap 🗺️
 
-- [ ] Frontend dApp (Next.js + wagmi)
+- [ ] Production Yellow Network integration
 - [ ] Mainnet deployment
 - [ ] Decentralized solver network
 - [ ] Cross-chain intent support
+- [ ] Mobile-responsive design
 
 ---
 
 ## 📚 Technology Stack
+
+### Frontend
+- **Build Tool**: Vite 7.x
+- **Framework**: React 18 with TypeScript
+- **Styling**: Tailwind CSS 4.x
+- **Web3**: Wagmi v2 + viem
+- **State**: @tanstack/react-query
+- **Icons**: lucide-react
+- **Encryption**: Web Crypto API (native)
 
 ### Backend
 - **Runtime**: Node.js 18+ with TypeScript
