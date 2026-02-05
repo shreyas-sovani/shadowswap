@@ -1,0 +1,11 @@
+{
+  "hookAddress": "0xB5b199514D498EC0d13959FF201b8e7Ac6bb8080",
+  "mockTokenAddress": "0x77E725B2F1096Df61A7BC594632c1a1f2799417C",
+  "solverAddress": "0xD2aA21AF4faa840Dea890DB2C6649AACF2C80Ff3",
+  "poolKey": {
+    "currency0": "0x0000000000000000000000000000000000000000",
+    "currency1": "0x77E725B2F1096Df61A7BC594632c1a1f2799417C",
+    "fee": 3000,
+    "tickSpacing": 60
+  }
+}

@@ -31,6 +31,9 @@ remappings = [
     "permit2/=lib/v4-periphery/lib/permit2/"
 ]
 
+# Filesystem permissions for writing deployment config
+fs_permissions = [{ access = "read-write", path = "./" }, { access = "read-write", path = "../" }]
+
 [profile.default.fuzz]
 runs = 256
 

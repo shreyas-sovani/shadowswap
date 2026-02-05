@@ -2,6 +2,7 @@
 pragma solidity 0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -163,5 +164,22 @@ contract DeployHook is Script {
         console.log("// Pool ID (keccak256 of PoolKey):");
         console.log("POOL_ID=", vm.toString(poolId));
         console.log("========================================");
+
+        // Write deployment config to frontend config.json
+        string memory json = string.concat(
+            '{\n',
+            '  "hookAddress": "', vm.toString(address(hook)), '",\n',
+            '  "mockTokenAddress": "', vm.toString(address(mockToken)), '",\n',
+            '  "solverAddress": "', vm.toString(solver), '",\n',
+            '  "poolKey": {\n',
+            '    "currency0": "', vm.toString(token0), '",\n',
+            '    "currency1": "', vm.toString(token1), '",\n',
+            '    "fee": ', vm.toString(LP_FEE), ',\n',
+            '    "tickSpacing": ', vm.toString(int256(TICK_SPACING)), '\n',
+            '  }\n',
+            '}'
+        );
+        vm.writeFile("../frontend/src/config.json", json);
+        console.log("Config written to ../frontend/src/config.json");
     }
 }
