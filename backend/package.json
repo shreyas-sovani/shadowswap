@@ -1,0 +1,33 @@
+{
+  "name": "shadowswap-backend",
+  "version": "0.1.0",
+  "description": "ShadowSwap MEV-resistant intent swapping backend",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/check-conn.ts",
+    "auth": "tsx src/verify-auth.ts",
+    "build": "tsc",
+    "start": "node dist/check-conn.js"
+  },
+  "keywords": [
+    "mev",
+    "intent",
+    "swap",
+    "yellow-network",
+    "state-channels"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@erc7824/nitrolite": "^0.5.3",
+    "dotenv": "^17.2.3",
+    "viem": "^2.45.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
