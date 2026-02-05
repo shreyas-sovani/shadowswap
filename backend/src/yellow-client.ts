@@ -42,6 +42,7 @@ export interface YellowClient {
   walletClient: WalletClient;
   publicClient: PublicClient;
   sendRequest: (method: string, params: object, signatures?: string[]) => Promise<RpcResponse>;
+  executeTrade: (intentA: any, intentB: any) => Promise<void>;
   close: () => void;
 }
 
@@ -83,11 +84,11 @@ export async function signRpcPayload(
 ): Promise<string> {
   const { keccak256, toBytes, signatureToHex } = await import('viem');
   const { sign } = await import('viem/accounts');
-  
+
   // Nitro RPC signs the exact JSON bytes of the req array
   const messageBytes = toBytes(JSON.stringify(payload));
   const hash = keccak256(messageBytes);
-  
+
   const signature = await sign({ hash, privateKey });
   return signatureToHex(signature);
 }
@@ -112,7 +113,7 @@ export async function setupClient(config?: Partial<ClearnodeConfig>): Promise<Ye
 
   // Main wallet account
   const account = privateKeyToAccount(finalConfig.privateKey);
-  
+
   // Generate ephemeral session key
   const sessionPrivateKey = generatePrivateKey();
   const sessionAccount = privateKeyToAccount(sessionPrivateKey);
@@ -168,7 +169,7 @@ export async function setupClient(config?: Partial<ClearnodeConfig>): Promise<Ye
     signatures: string[] = []
   ): Promise<RpcResponse> {
     const message = buildRpcMessage(method, params, signatures);
-    
+
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         pendingRequests.delete(message.req[0]);
@@ -201,6 +202,21 @@ export async function setupClient(config?: Partial<ClearnodeConfig>): Promise<Ye
     walletClient,
     publicClient,
     sendRequest,
+    executeTrade: async (intentA: any, intentB: any) => {
+      // MOCK: In a real implementation, this would involve:
+      // 1. Creating a multi-party atomic swap or
+      // 2. Executing two transfers via the Clearnode
+
+      // For now, per requirements, we just log the trade execution.
+      // We assume the channel ID is global or derived from the intents.
+
+      console.log(`\n[YellowClient] MOCK: Executing Trade on Channel`);
+      console.log(`  - Intent A: ${intentA.id} (${intentA.amountIn} ${intentA.tokenIn} -> ${intentA.tokenOut})`);
+      console.log(`  - Intent B: ${intentB.id} (${intentB.amountIn} ${intentB.tokenIn} -> ${intentB.tokenOut})`);
+      console.log(`[YellowClient] Trade Submitted successfully (Mocked).\n`);
+
+      return Promise.resolve();
+    },
     close,
   };
 }
@@ -211,7 +227,7 @@ export async function setupClient(config?: Partial<ClearnodeConfig>): Promise<Ye
 function connectWebSocket(url: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
-    
+
     const timeout = setTimeout(() => {
       ws.close();
       reject(new Error('WebSocket connection timeout'));
@@ -247,7 +263,7 @@ export function buildAuthRequestParams(
   }
 ): object {
   const expiresAt = Date.now() + (options?.expireInSeconds || 86400) * 1000; // Default 24h
-  
+
   return {
     wallet: walletAddress,
     participant: sessionKeyAddress,  // Session key address
@@ -287,16 +303,16 @@ export async function signAuthChallenge(
     });
     return signature;
   }
-  
+
   // Simple string challenge - use personal sign (EIP-191)
-  const message = typeof challengeMessage === 'string' 
-    ? challengeMessage 
+  const message = typeof challengeMessage === 'string'
+    ? challengeMessage
     : JSON.stringify(challengeMessage);
-  
+
   const signature = await walletClient.signMessage({
     account: walletClient.account!,
     message: message,
   });
-  
+
   return signature;
 }
