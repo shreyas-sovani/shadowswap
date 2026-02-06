@@ -6,6 +6,7 @@ import {
     type Hex,
     formatEther,
 } from 'viem';
+import { namehash } from 'viem/ens';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import { Intent } from './types';
@@ -30,6 +31,7 @@ const config = require('./config.json');
 const ROUTER_ADDRESS = config.routerAddress as Address;
 const HOOK_ADDRESS = config.hookAddress as Address;
 const MOCK_TOKEN_ADDRESS = config.mockTokenAddress as Address;
+const MOCK_ENS_ADDRESS = config.mockENSAddress as Address;
 
 // Pool Key from config
 const POOL_KEY = {
@@ -93,6 +95,21 @@ const SHADOW_ROUTER_ABI = [
     },
 ] as const;
 
+// MockENSResolver ABI
+const MOCK_ENS_ABI = [
+    {
+        name: 'setText',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [
+            { name: 'node', type: 'bytes32' },
+            { name: 'key', type: 'string' },
+            { name: 'value', type: 'string' },
+        ],
+        outputs: [],
+    },
+] as const;
+
 // ============ Types ============
 
 export interface SettlementResult {
@@ -145,7 +162,7 @@ export class SettlementEngine {
             }) as Address;
 
             const isAuthorized = authorizedSolver.toLowerCase() === this.account.address.toLowerCase();
-            
+
             if (!isAuthorized) {
                 console.error(`[Settler] ❌ SOLVER NOT AUTHORIZED!`);
                 console.error(`[Settler] Expected: ${this.account.address}`);
@@ -234,6 +251,37 @@ export class SettlementEngine {
                 console.log(`[Settler] ✅ Settlement CONFIRMED in block ${receipt.blockNumber}`);
                 console.log(`[Settler] Gas used: ${receipt.gasUsed}`);
 
+                // Update ENS Audit Trail (skip if it causes rate limiting issues)
+                console.log(`[Settler] 📝 Recording settlement to Mock ENS...`);
+                try {
+                    const node = namehash("shadowswap.eth");
+                    const key = "latest_settlement";
+                    const value = txHash;
+
+                    const { request: ensRequest } = await this.publicClient.simulateContract({
+                        address: MOCK_ENS_ADDRESS,
+                        abi: MOCK_ENS_ABI,
+                        functionName: 'setText',
+                        args: [node, key, value],
+                        account: this.account,
+                    });
+
+                    const ensTx = await this.walletClient.writeContract(ensRequest);
+                    console.log(`[Settler] ✅ ENS updated! Tx: ${ensTx}`);
+                    
+                    // Wait for ENS tx to confirm before continuing (avoid in-flight limit)
+                    await this.publicClient.waitForTransactionReceipt({
+                        hash: ensTx,
+                        confirmations: 1,
+                    });
+                    console.log(`[Settler] ✅ ENS tx confirmed`);
+                    
+                    // Extra delay to be safe
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } catch (ensError) {
+                    console.error(`[Settler] ⚠️ Failed to update ENS (non-critical):`, ensError);
+                }
+
                 // Try to decode the MatchExecuted event to get amountOut
                 let amountOut: string | undefined;
                 for (const log of receipt.logs) {
@@ -258,7 +306,7 @@ export class SettlementEngine {
             }
         } catch (error: any) {
             console.error(`[Settler] ❌ Settlement failed:`, error.message || error);
-            
+
             // Extract useful error info
             let errorMessage = 'Unknown error';
             if (error.shortMessage) {
@@ -287,9 +335,13 @@ export class SettlementEngine {
         console.log(`[Settler] Intent 2: ${intent2.id} (${intent2.userAddress})`);
         console.log(`[Settler] ════════════════════════════════════════════`);
 
-        // Execute both settlements sequentially
-        // (Could be parallelized, but sequential is safer for nonce management)
+        // Execute both settlements sequentially with delay to avoid RPC rate limiting
         const result1 = await this.execute(intent1);
+        
+        // Wait 5 seconds before second settlement to avoid "in-flight transaction limit"
+        console.log(`[Settler] ⏳ Waiting 5s before second settlement (RPC rate limit)...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
         const result2 = await this.execute(intent2);
 
         console.log(`[Settler] ════════════════════════════════════════════`);

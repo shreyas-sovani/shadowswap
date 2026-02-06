@@ -37,6 +37,7 @@ ShadowSwap is **live and working** on Sepolia! Users can:
 2. Submit swap intents (ETH ↔ SHADOW)
 3. Get matched with counter-parties automatically
 4. Have swaps settled on-chain through the protected Uniswap v4 pool
+5. **Verify the trade** via our on-chain ENS Audit Trail
 
 ---
 
@@ -320,6 +321,16 @@ function SwapCard() {
     };
 }
 ```
+
+### 6. Mock ENS Resolver (Audit Trail)
+
+Simulates ENS text records to provide a decentralized audit trail of all settled trades.
+
+**File:** `contracts/src/MockENSResolver.sol`
+
+- Stores mapping of `node => key => value`
+- Backend records `latest_settlement` hash for `shadowswap.eth`
+- Frontend verifies this to prove on-chain settlement
 ---
 
 ## 🚀 Live Deployment (Sepolia Testnet)
@@ -559,6 +570,12 @@ optimizer_runs = 200
   - Price-aware order matching (1 ETH = 1000 SHADOW)
   - On-chain settler engine
   - **End-to-end swaps working!** 🎉
+- [x] **Phase 12**: ENS Integration (Audit Trail)
+  - MockENSResolver contract & deployment
+  - Backend integration to record settlements on-chain
+- [x] **Phase 13**: UI Polish & Verification
+  - "Verifiable Audit Trail" link in Success UI
+  - Real-time Etherscan links for proof of settlement
 
 ### Future Roadmap 🗺️
 

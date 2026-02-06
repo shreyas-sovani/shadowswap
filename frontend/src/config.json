@@ -10,4 +10,6 @@
     "fee": 3000,
     "tickSpacing": 60
   }
+,
+  "mockENSAddress": "0xdF53ef2e1706083e3B110497aC0F12B56897a33D"
 }

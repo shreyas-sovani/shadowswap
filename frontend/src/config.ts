@@ -40,6 +40,9 @@ export const POOL_MANAGER_ADDRESS = deployment.poolManagerAddress as `0x${string
 // Legacy alias for backward compatibility
 export const MOCK_TOKEN_ADDRESS = MOCK_TOKEN;
 
+/** Mock ENS Resolver address for Audit Trail */
+export const MOCK_ENS_ADDRESS = deployment.mockENSAddress as `0x${string}`;
+
 // ============ Pool Key Configuration ============
 
 /**
@@ -99,10 +102,10 @@ export const UI_CONFIG = {
   // Slippage tolerance options (in basis points)
   slippageOptions: [50, 100, 200, 500], // 0.5%, 1%, 2%, 5%
   defaultSlippage: 100, // 1%
-  
+
   // Intent expiry time (in seconds)
   intentExpiryTime: 300, // 5 minutes
-  
+
   // Polling interval for intent status (in ms)
   statusPollingInterval: 3000,
 } as const;
