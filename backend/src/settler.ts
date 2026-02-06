@@ -10,6 +10,7 @@ import { namehash } from 'viem/ens';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import { Intent } from './types';
+import { emitSettlementEvent } from './events';
 import 'dotenv/config';
 
 // ============ Configuration ============
@@ -191,9 +192,10 @@ export class SettlementEngine {
         console.log(`[Settler] TokenOut: ${intent.tokenOut}`);
         console.log(`[Settler] AmountIn: ${intent.amountIn}`);
 
-        // Validate intent status
-        if (intent.status !== 'MATCHED') {
-            console.error(`[Settler] ❌ Intent status is ${intent.status}, expected MATCHED`);
+        // Validate intent status - accept MATCHED or SETTLING
+        // (matcher sets to SETTLING before calling, but we also want to handle MATCHED for direct calls)
+        if (intent.status !== 'MATCHED' && intent.status !== 'SETTLING') {
+            console.error(`[Settler] ❌ Intent status is ${intent.status}, expected MATCHED or SETTLING`);
             return {
                 success: false,
                 error: `Invalid intent status: ${intent.status}`,
@@ -201,6 +203,11 @@ export class SettlementEngine {
         }
 
         try {
+            // Emit settling started event
+            emitSettlementEvent('SETTLING_STARTED', intent.id, {
+                message: `Starting settlement for ${intent.tokenIn === POOL_KEY.currency0 ? 'ETH → SHADOW' : 'SHADOW → ETH'}`,
+            });
+
             // Determine swap direction based on tokens
             // zeroForOne = true means swapping currency0 (ETH) for currency1 (SHADOW)
             // zeroForOne = false means swapping currency1 (SHADOW) for currency0 (ETH)
@@ -240,8 +247,19 @@ export class SettlementEngine {
             console.log(`[Settler] ✅ Transaction submitted!`);
             console.log(`[Settler] TxHash: ${txHash}`);
 
+            // Emit TX submitted event
+            emitSettlementEvent('TX_SUBMITTED', intent.id, {
+                txHash,
+                message: 'Transaction submitted to network',
+            });
+
             // Wait for confirmation (1 block)
             console.log(`[Settler] Waiting for confirmation...`);
+            emitSettlementEvent('TX_CONFIRMING', intent.id, {
+                txHash,
+                message: 'Waiting for block confirmation...',
+            });
+
             const receipt = await this.publicClient.waitForTransactionReceipt({
                 hash: txHash,
                 confirmations: 1,
@@ -251,8 +269,20 @@ export class SettlementEngine {
                 console.log(`[Settler] ✅ Settlement CONFIRMED in block ${receipt.blockNumber}`);
                 console.log(`[Settler] Gas used: ${receipt.gasUsed}`);
 
+                // Emit confirmed event
+                emitSettlementEvent('TX_CONFIRMED', intent.id, {
+                    txHash,
+                    blockNumber: Number(receipt.blockNumber),
+                    gasUsed: receipt.gasUsed.toString(),
+                    message: `Confirmed in block ${receipt.blockNumber}`,
+                });
+
                 // Update ENS Audit Trail (skip if it causes rate limiting issues)
                 console.log(`[Settler] 📝 Recording settlement to Mock ENS...`);
+                emitSettlementEvent('ENS_UPDATING', intent.id, {
+                    message: 'Recording to ENS audit trail...',
+                });
+
                 try {
                     const node = namehash("shadowswap.eth");
                     const key = "latest_settlement";
@@ -276,6 +306,11 @@ export class SettlementEngine {
                     });
                     console.log(`[Settler] ✅ ENS tx confirmed`);
                     
+                    emitSettlementEvent('ENS_CONFIRMED', intent.id, {
+                        txHash: ensTx,
+                        message: 'ENS audit trail updated',
+                    });
+                    
                     // Extra delay to be safe
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 } catch (ensError) {
@@ -291,6 +326,11 @@ export class SettlementEngine {
                     }
                 }
 
+                emitSettlementEvent('SETTLEMENT_COMPLETE', intent.id, {
+                    txHash,
+                    message: 'Settlement complete!',
+                });
+
                 return {
                     success: true,
                     txHash,
@@ -298,6 +338,10 @@ export class SettlementEngine {
                 };
             } else {
                 console.error(`[Settler] ❌ Transaction REVERTED`);
+                emitSettlementEvent('SETTLEMENT_FAILED', intent.id, {
+                    txHash,
+                    error: 'Transaction reverted on-chain',
+                });
                 return {
                     success: false,
                     txHash,
@@ -314,6 +358,10 @@ export class SettlementEngine {
             } else if (error.message) {
                 errorMessage = error.message;
             }
+
+            emitSettlementEvent('SETTLEMENT_FAILED', intent.id, {
+                error: errorMessage,
+            });
 
             return {
                 success: false,
@@ -340,6 +388,10 @@ export class SettlementEngine {
         
         // Wait 5 seconds before second settlement to avoid "in-flight transaction limit"
         console.log(`[Settler] ⏳ Waiting 5s before second settlement (RPC rate limit)...`);
+        emitSettlementEvent('WAITING_RATE_LIMIT', intent2.id, {
+            message: 'Waiting 5s for RPC rate limit...',
+            waitTimeMs: 5000,
+        });
         await new Promise(resolve => setTimeout(resolve, 5000));
         
         const result2 = await this.execute(intent2);

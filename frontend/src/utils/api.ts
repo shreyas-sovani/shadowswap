@@ -32,7 +32,7 @@ export async function submitIntent(intent: Omit<Intent, 'status'>): Promise<Subm
  */
 export async function checkHealth(): Promise<HealthResponse> {
   const response = await fetch(API.health);
-  
+
   if (!response.ok) {
     throw new Error(`Health check failed: HTTP ${response.status}`);
   }
@@ -44,8 +44,13 @@ export async function checkHealth(): Promise<HealthResponse> {
  * Get intent status by ID
  */
 export async function getIntentStatus(intentId: string): Promise<Intent | null> {
-  const response = await fetch(`${API.getIntents}/${intentId}`);
-  
+  const response = await fetch(`${API.getIntents}/${intentId}`, {
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    }
+  });
+
   if (response.status === 404) {
     return null;
   }

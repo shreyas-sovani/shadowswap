@@ -5,6 +5,7 @@ import { setupClient, YellowClient } from './yellow-client';
 import { OrderBook, MatchResult } from './matcher';
 import { Intent } from './types';
 import { settler } from './settler';
+import { settlementEvents, getStoredEvents } from './events';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -78,14 +79,14 @@ app.post('/submit-intent', async (req, res) => {
                     yourError: settlement1.error,
                     counterpartyError: settlement2.error,
                 },
-                message: settlement1.success && settlement2.success 
-                    ? 'Trade matched and settled on-chain!' 
+                message: settlement1.success && settlement2.success
+                    ? 'Trade matched and settled on-chain!'
                     : 'Trade matched but settlement had issues. Check settlement details.'
             });
         } else {
             console.log(`[API] ⏳ No match found. Waiting in order book.`);
             console.log(`[API] ════════════════════════════════════════════\n`);
-            
+
             res.status(200).json({
                 success: true,
                 status: 'PENDING',
@@ -98,6 +99,76 @@ app.post('/submit-intent', async (req, res) => {
         console.error('[API] Error processing intent:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
+});
+
+// Get intent status by ID
+app.get('/intent/:id', (req, res) => {
+    const { id } = req.params;
+    const intent = orderBook.getIntent(id);
+
+    if (!intent) {
+        res.status(404).json({ error: 'Intent not found' });
+        return;
+    }
+
+    res.status(200).json({
+        id: intent.id,
+        status: intent.status,
+        userAddress: intent.userAddress,
+        tokenIn: intent.tokenIn,
+        tokenOut: intent.tokenOut,
+        amountIn: intent.amountIn,
+        direction: intent.tokenIn === '0x0000000000000000000000000000000000000000' ? 'ETH → SHADOW' : 'SHADOW → ETH',
+        // Settlement data
+        matchId: intent.matchId ?? null,
+        counterparty: intent.counterparty ?? null,
+        txnHash: intent.txnHash ?? null,
+        settledAt: intent.settledAt ?? null,
+        settlementError: intent.settlementError ?? null,
+    });
+});
+
+// SSE endpoint for real-time settlement events
+app.get('/events/:intentId', (req, res) => {
+    const { intentId } = req.params;
+    
+    console.log(`[SSE] Client subscribed to events for intent: ${intentId}`);
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.flushHeaders();
+
+    // Send initial connected event
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', intentId, timestamp: Date.now() })}\n\n`);
+
+    // Replay any stored events for this intent (in case client connected late)
+    const storedEvents = getStoredEvents(intentId);
+    if (storedEvents.length > 0) {
+        console.log(`[SSE] Replaying ${storedEvents.length} stored events for ${intentId}`);
+        for (const event of storedEvents) {
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
+    }
+
+    // Listen for new settlement events for this intent
+    const eventHandler = (event: any) => {
+        if (event.intentId === intentId) {
+            console.log(`[SSE] Sending event to ${intentId}:`, event.type);
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
+    };
+
+    settlementEvents.on('settlement', eventHandler);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+        console.log(`[SSE] Client disconnected from intent: ${intentId}`);
+        settlementEvents.off('settlement', eventHandler);
+        res.end();
+    });
 });
 
 // Get pending intents
@@ -119,8 +190,8 @@ app.get('/intents', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok', 
+    res.status(200).json({
+        status: 'ok',
         yellowClient: !!yellowClient,
         pendingIntents: orderBook.getIntents().length
     });

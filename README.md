@@ -116,10 +116,13 @@ shadowswap/
 │       ├── config.json          # Auto-generated deployment config
 │       ├── types.ts             # Intent, Token, API types
 │       ├── components/
-│       │   └── SwapCard.tsx     # Main swap interface component
+│       │   └── SwapCard.tsx     # Main swap interface with SSE events
 │       ├── hooks/
+│       │   ├── index.ts         # Hooks barrel export
 │       │   ├── useShadowSubmit.ts # Intent submission hook
-│       │   └── useToken.ts      # Token balance/approve hooks
+│       │   ├── useToken.ts      # Token balance/approve hooks
+│       │   ├── useIntentStatus.ts # Polling hook for intent status
+│       │   └── useSettlementEvents.ts # SSE hook for real-time events
 │       └── utils/
 │           ├── crypto.ts        # AES-GCM encryption, key derivation
 │           └── api.ts           # Backend API client
@@ -128,12 +131,13 @@ shadowswap/
 │   ├── package.json             # Dependencies (express, viem, ws)
 │   ├── tsconfig.json            # TypeScript configuration
 │   └── src/
-│       ├── server.ts            # Express API server (POST /submit-intent)
+│       ├── server.ts            # Express API + SSE endpoints
 │       ├── matcher.ts           # Price-aware OrderBook matching engine
-│       ├── settler.ts           # On-chain settlement via ShadowRouter
+│       ├── settler.ts           # On-chain settlement + event emissions
+│       ├── events.ts            # SSE EventEmitter + event history
 │       ├── yellow-client.ts     # Yellow Network WebSocket client
 │       ├── config.json          # Deployment addresses (synced with frontend)
-│       ├── types.ts             # TypeScript type definitions
+│       ├── types.ts             # TypeScript types + SettlementEvent
 │       └── abis/
 │           └── ShadowRouter.json # Router ABI for settlements
 │
@@ -142,10 +146,12 @@ shadowswap/
 │   ├── remappings.txt           # Import remappings
 │   ├── src/
 │   │   ├── ShadowHook.sol       # Uniswap v4 Hook (solver-only swaps)
-│   │   └── ShadowRouter.sol     # Router for fund transfer & settlement
+│   │   ├── ShadowRouter.sol     # Router for fund transfer & settlement
+│   │   └── MockENSResolver.sol  # Mock ENS for audit trail
 │   ├── script/
 │   │   ├── DeployAll.s.sol      # Master deployment script
 │   │   ├── DeployHook.s.sol     # Hook-only deployment
+│   │   ├── DeployENS.s.sol      # ENS resolver deployment
 │   │   ├── AddLiquidity.s.sol   # Liquidity addition script
 │   │   ├── DeployAndAddLiquidity.s.sol # Combined liquidity helper
 │   │   └── mocks/
@@ -447,8 +453,62 @@ interface Intent {
     tokenOut: string;     // Token to buy (address)
     amountIn: string;     // Amount to sell (wei, as string)
     minAmountOut: string; // Minimum amount to receive (wei, as string)
-    status: 'PENDING' | 'MATCHED' | 'SETTLED';
+    status: 'PENDING' | 'MATCHED' | 'SETTLING' | 'SETTLED' | 'FAILED';
 }
+
+interface SettlementEvent {
+    type: SettlementEventType;
+    intentId: string;
+    timestamp: number;
+    data?: {
+        txHash?: string;
+        blockNumber?: number;
+        message?: string;
+        error?: string;
+    };
+}
+
+type SettlementEventType = 
+    | 'MATCHED'
+    | 'SETTLING_STARTED'
+    | 'TX_SUBMITTED'
+    | 'TX_CONFIRMING'
+    | 'TX_CONFIRMED'
+    | 'ENS_UPDATING'
+    | 'ENS_CONFIRMED'
+    | 'SETTLEMENT_COMPLETE'
+    | 'SETTLEMENT_FAILED'
+    | 'WAITING_RATE_LIMIT';
+```
+
+---
+
+## 🔌 API Endpoints
+
+### REST Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/submit-intent` | Submit a new swap intent |
+| `GET` | `/intent/:id` | Get intent status by ID |
+| `GET` | `/intents` | List all pending intents |
+| `GET` | `/health` | Health check |
+
+### SSE (Server-Sent Events)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/events/:intentId` | Stream real-time settlement events |
+
+**SSE Connection Example:**
+```javascript
+const eventSource = new EventSource('http://localhost:3000/events/abc123');
+
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Event:', data.type, data.data);
+    // { type: 'TX_CONFIRMED', intentId: 'abc123', timestamp: 1707321234567, data: { txHash: '0x...' } }
+};
 ```
 
 ### Example: Swap 1 SHADOW for ETH
@@ -570,12 +630,67 @@ optimizer_runs = 200
   - Price-aware order matching (1 ETH = 1000 SHADOW)
   - On-chain settler engine
   - **End-to-end swaps working!** 🎉
-- [x] **Phase 12**: ENS Integration (Audit Trail)
+- [x] **Phase 10**: ENS Integration (Audit Trail)
   - MockENSResolver contract & deployment
   - Backend integration to record settlements on-chain
-- [x] **Phase 13**: UI Polish & Verification
+- [x] **Phase 11**: UI Polish & Verification
   - "Verifiable Audit Trail" link in Success UI
   - Real-time Etherscan links for proof of settlement
+- [x] **Phase 12**: Real-Time Settlement Events (SSE)
+  - Server-Sent Events (SSE) streaming from backend to frontend
+  - `SettlementEventEmitter` for broadcasting events at each settlement step
+  - Event types: `SETTLING_STARTED`, `TX_SUBMITTED`, `TX_CONFIRMING`, `TX_CONFIRMED`, `ENS_UPDATING`, `ENS_CONFIRMED`, `SETTLEMENT_COMPLETE`, `SETTLEMENT_FAILED`, `WAITING_RATE_LIMIT`
+  - Event history storage with replay for late-connecting clients
+  - `useSettlementEvents` React hook for SSE consumption
+  - Live event log display in SwapCard with timestamps & tx links
+  - Status derived from SSE events for instant UI updates
+  - Automatic balance refresh on settlement complete
+
+### Architecture: Real-Time Event Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        SSE Event Flow                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Backend Settler                    Frontend SwapCard                    │
+│  ───────────────                    ──────────────────                   │
+│                                                                          │
+│  1. Settlement starts               SSE Connection established           │
+│     │                                     │                              │
+│     ├─→ SETTLING_STARTED ─────────────────┼─→ Status: "SETTLING"        │
+│     │                                     │                              │
+│  2. TX submitted                          │                              │
+│     ├─→ TX_SUBMITTED ─────────────────────┼─→ Show tx hash              │
+│     │                                     │                              │
+│  3. Waiting for confirmation              │                              │
+│     ├─→ TX_CONFIRMING ────────────────────┼─→ Show "Confirming..."      │
+│     │                                     │                              │
+│  4. TX confirmed                          │                              │
+│     ├─→ TX_CONFIRMED ─────────────────────┼─→ Show block number         │
+│     │                                     │                              │
+│  5. Recording to ENS                      │                              │
+│     ├─→ ENS_UPDATING ─────────────────────┼─→ Show "Writing ENS..."     │
+│     │                                     │                              │
+│  6. ENS confirmed                         │                              │
+│     ├─→ ENS_CONFIRMED ────────────────────┼─→ Show ENS tx hash          │
+│     │                                     │                              │
+│  7. Complete!                             │                              │
+│     └─→ SETTLEMENT_COMPLETE ──────────────┼─→ Status: "SETTLED" ✅      │
+│                                           │   Refetch balances          │
+│                                           │                              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Files for SSE System
+
+| File | Purpose |
+|------|---------|
+| `backend/src/events.ts` | EventEmitter + event history storage |
+| `backend/src/settler.ts` | Emits events at each settlement step |
+| `backend/src/server.ts` | SSE endpoint `/events/:intentId` with replay |
+| `frontend/src/hooks/useSettlementEvents.ts` | React hook for SSE consumption |
+| `frontend/src/components/SwapCard.tsx` | Live event log + status from events |
 
 ### Future Roadmap 🗺️
 
