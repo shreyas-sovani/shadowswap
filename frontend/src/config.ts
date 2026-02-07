@@ -8,7 +8,7 @@
 import deployment from './config.json';
 
 // ============ Backend Configuration ============
-export const BACKEND_URL = 'http://localhost:3000';
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 // ============ Chain Configuration ============
 export const CHAIN_ID = 11155111; // Sepolia
