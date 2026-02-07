@@ -31,6 +31,7 @@ interface UseSubmitState {
   isSigning: boolean;
   error: string | null;
   lastResult: SubmitResult | null;
+  pendingIntentId: string | null; // Intent ID available immediately after signing
 }
 
 export function useShadowSubmit() {
@@ -42,6 +43,7 @@ export function useShadowSubmit() {
     isSigning: false,
     error: null,
     lastResult: null,
+    pendingIntentId: null,
   });
 
   const submit = useCallback(async (amount: string, direction: SwapDirection): Promise<SubmitResult> => {
@@ -49,19 +51,22 @@ export function useShadowSubmit() {
       throw new Error('Wallet not connected');
     }
 
-    setState(prev => ({ ...prev, isSubmitting: true, isSigning: true, error: null }));
+    setState(prev => ({ ...prev, isSubmitting: true, isSigning: true, error: null, pendingIntentId: null }));
 
     try {
       // Step 1: Sign message to derive encryption key
       const signature = await signMessageAsync({ message: AUTH_MESSAGE });
       
-      setState(prev => ({ ...prev, isSigning: false }));
+      // Generate intentId immediately so SSE can connect early
+      const intentId = crypto.randomUUID();
+      
+      // Set pendingIntentId IMMEDIATELY so frontend can start SSE connection
+      setState(prev => ({ ...prev, isSigning: false, pendingIntentId: intentId }));
 
       // Step 2: Derive encryption key from signature
       const encryptionKey = await generateKeyFromSignature(signature);
 
       // Step 3: Create intent payload based on direction
-      const intentId = crypto.randomUUID();
       const amountWei = parseEther(amount).toString();
       
       // Determine tokenIn and tokenOut based on direction
@@ -137,6 +142,7 @@ export function useShadowSubmit() {
       isSigning: false,
       error: null,
       lastResult: null,
+      pendingIntentId: null,
     });
   }, []);
 

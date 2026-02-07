@@ -121,6 +121,7 @@ export function SwapCard() {
     isSigning,
     error: submitError,
     lastResult,
+    pendingIntentId,
     reset: resetSubmit,
   } = useShadowSubmit();
 
@@ -130,10 +131,23 @@ export function SwapCard() {
     successIntent?.initialStatus ? { status: successIntent.initialStatus as 'PENDING' | 'MATCHED' | 'SETTLING' | 'SETTLED' | 'FAILED' | 'UNKNOWN' } : undefined
   );
 
-  // Subscribe to live settlement events via SSE
+  // Subscribe to live settlement events via SSE - use pendingIntentId for EARLY connection
+  const activeIntentId = successIntent?.id ?? pendingIntentId ?? null;
   const { events: settlementEvents, isConnected: sseConnected } = useSettlementEvents(
-    successIntent?.id ?? null
+    activeIntentId
   );
+
+  // Set successIntent as soon as pendingIntentId is available (don't wait for API response)
+  useEffect(() => {
+    if (pendingIntentId && !successIntent) {
+      console.log('[SwapCard] Setting successIntent from pendingIntentId:', pendingIntentId);
+      setSuccessIntent({
+        id: pendingIntentId,
+        initialStatus: 'PENDING'
+      });
+      setAmount('');
+    }
+  }, [pendingIntentId, successIntent]);
 
   // Refetch balances after successful mint/approve
   useEffect(() => {
@@ -151,21 +165,20 @@ export function SwapCard() {
     }
   }, [settlementEvents, refetch]);
 
-  // Handle successful submit
+  // Handle API response (update status, show toast, but successIntent already set via pendingIntentId)
   useEffect(() => {
     if (lastResult?.success) {
-      setSuccessIntent({
-        id: lastResult.intentId,
-        initialStatus: lastResult.status
-      });
+      // Update status from API response if we have new info
+      if (successIntent && lastResult.status !== successIntent.initialStatus) {
+        setSuccessIntent(prev => prev ? { ...prev, initialStatus: lastResult.status } : null);
+      }
       setToast({
         type: 'success',
         message: `Intent ${lastResult.status}!`,
       });
-      setAmount('');
       resetSubmit();
     }
-  }, [lastResult, resetSubmit]);
+  }, [lastResult, resetSubmit, successIntent]);
 
   // Show error toast
   useEffect(() => {
