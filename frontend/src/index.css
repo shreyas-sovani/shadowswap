@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -13,6 +14,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* shadcn CSS variables */
+  --card: 0 0% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --muted-foreground: 0 0% 63.9%;
+  --border: 0 0% 14.9%;
 }
 
 a {
@@ -20,6 +27,7 @@ a {
   color: #646cff;
   text-decoration: inherit;
 }
+
 a:hover {
   color: #535bf2;
 }
@@ -46,9 +54,11 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -59,10 +69,257 @@ button:focus-visible {
     color: #213547;
     background-color: #ffffff;
   }
+
   a:hover {
     color: #747bff;
   }
+
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* Spotlight animation for Aceternity components */
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
+
+.animate-spotlight {
+  animation: spotlight 2s ease forwards;
+}
+
+/* Loader spinner for Spline fallback */
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid rgba(255, 255, 255, 0.2);
+  border-bottom-color: #a855f7;
+  border-radius: 50%;
+  display: inline-block;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== GRADIENT BUTTON COMPONENT ===== */
+
+/* CSS Custom Properties for animated gradients */
+@property --pos-x {
+  syntax: '<percentage>';
+  initial-value: 11.14%;
+  inherits: false;
+}
+
+@property --pos-y {
+  syntax: '<percentage>';
+  initial-value: 140%;
+  inherits: false;
+}
+
+@property --spread-x {
+  syntax: '<percentage>';
+  initial-value: 150%;
+  inherits: false;
+}
+
+@property --spread-y {
+  syntax: '<percentage>';
+  initial-value: 180.06%;
+  inherits: false;
+}
+
+@property --color-1 {
+  syntax: '<color>';
+  initial-value: #000;
+  inherits: false;
+}
+
+@property --color-2 {
+  syntax: '<color>';
+  initial-value: #0a0118;
+  inherits: false;
+}
+
+@property --color-3 {
+  syntax: '<color>';
+  initial-value: #2d1a4e;
+  inherits: false;
+}
+
+@property --color-4 {
+  syntax: '<color>';
+  initial-value: #4a2865;
+  inherits: false;
+}
+
+@property --color-5 {
+  syntax: '<color>';
+  initial-value: #6b3a80;
+  inherits: false;
+}
+
+@property --border-angle {
+  syntax: '<angle>';
+  initial-value: 20deg;
+  inherits: true;
+}
+
+@property --border-color-1 {
+  syntax: '<color>';
+  initial-value: hsla(280, 75%, 60%, 0.2);
+  inherits: true;
+}
+
+@property --border-color-2 {
+  syntax: '<color>';
+  initial-value: hsla(280, 75%, 50%, 0.75);
+  inherits: true;
+}
+
+@property --stop-1 {
+  syntax: '<percentage>';
+  initial-value: 37.35%;
+  inherits: false;
+}
+
+@property --stop-2 {
+  syntax: '<percentage>';
+  initial-value: 61.36%;
+  inherits: false;
+}
+
+@property --stop-3 {
+  syntax: '<percentage>';
+  initial-value: 78.42%;
+  inherits: false;
+}
+
+@property --stop-4 {
+  syntax: '<percentage>';
+  initial-value: 89.52%;
+  inherits: false;
+}
+
+@property --stop-5 {
+  syntax: '<percentage>';
+  initial-value: 100%;
+  inherits: false;
+}
+
+/* Gradient button base styles */
+.gradient-button {
+  position: relative;
+  appearance: none;
+  cursor: pointer;
+  background: radial-gradient(var(--spread-x) var(--spread-y) at var(--pos-x) var(--pos-y),
+      var(--color-1) var(--stop-1),
+      var(--color-2) var(--stop-2),
+      var(--color-3) var(--stop-3),
+      var(--color-4) var(--stop-4),
+      var(--color-5) var(--stop-5));
+  transition:
+    --pos-x 0.5s ease,
+    --pos-y 0.5s ease,
+    --spread-x 0.5s ease,
+    --spread-y 0.5s ease,
+    --color-1 0.5s ease,
+    --color-2 0.5s ease,
+    --color-3 0.5s ease,
+    --color-4 0.5s ease,
+    --color-5 0.5s ease,
+    --border-angle 0.5s ease,
+    --border-color-1 0.5s ease,
+    --border-color-2 0.5s ease,
+    --stop-1 0.5s ease,
+    --stop-2 0.5s ease,
+    --stop-3 0.5s ease,
+    --stop-4 0.5s ease,
+    --stop-5 0.5s ease,
+    transform 0.2s ease;
+}
+
+.gradient-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(var(--border-angle),
+      var(--border-color-1),
+      var(--border-color-2));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.gradient-button:hover {
+  --pos-x: 0%;
+  --pos-y: 91.51%;
+  --spread-x: 120.24%;
+  --spread-y: 103.18%;
+  --color-1: #a855f7;
+  --color-2: #8b5cf6;
+  --color-3: #7c3aed;
+  --color-4: #1e1040;
+  --color-5: #000;
+  --border-angle: 190deg;
+  --border-color-1: hsla(280, 78%, 90%, 0.15);
+  --border-color-2: hsla(280, 75%, 70%, 0.6);
+  --stop-1: 0%;
+  --stop-2: 12%;
+  --stop-3: 28%;
+  --stop-4: 65%;
+  --stop-5: 85%;
+  transform: translateY(-1px);
+}
+
+.gradient-button:active {
+  transform: translateY(0);
+}
+
+/* Variant style - cyan/teal theme */
+.gradient-button-variant {
+  --color-1: #000015;
+  --color-2: #0a2540;
+  --color-3: #0d4f5c;
+  --color-4: #14b8a6;
+  --border-angle: 200deg;
+  --border-color-1: hsla(180, 75%, 70%, 0.5);
+  --border-color-2: hsla(180, 50%, 50%, 0.2);
+}
+
+.gradient-button-variant:hover {
+  --pos-x: 0%;
+  --pos-y: 95.51%;
+  --spread-x: 110.24%;
+  --spread-y: 110.2%;
+  --color-1: #000010;
+  --color-2: #14b8a6;
+  --color-3: #0d9488;
+  --color-4: #0a3540;
+  --color-5: #000;
+  --stop-1: 0%;
+  --stop-2: 15%;
+  --stop-3: 40%;
+  --stop-4: 70%;
+  --stop-5: 90%;
+  --border-angle: 210deg;
+  --border-color-1: hsla(180, 75%, 80%, 0.2);
+  --border-color-2: hsla(180, 70%, 60%, 0.7);
 }

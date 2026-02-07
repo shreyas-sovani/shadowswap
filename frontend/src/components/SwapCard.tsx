@@ -20,6 +20,7 @@ import { useIntentStatus } from '../hooks/useIntentStatus';
 import { useSettlementEvents } from '../hooks/useSettlementEvents';
 import type { SettlementEvent } from '../hooks/useSettlementEvents';
 import { MOCK_ENS_ADDRESS } from '../config';
+import { GradientButton } from '@/components/ui/gradient-button';
 
 type ActionState = 'low-balance' | 'needs-approval' | 'ready';
 
@@ -275,11 +276,10 @@ export function SwapCard() {
 
   if (!isConnected) {
     return (
-      <div className="max-w-md mx-auto p-6 bg-gray-800/50 rounded-2xl border border-gray-700">
-        <div className="text-center text-gray-400">
-          <Shield className="w-12 h-12 mx-auto mb-4 text-purple-400" />
-          <p>Connect your wallet to start trading privately</p>
-        </div>
+      <div className="max-w-md mx-auto text-center py-12">
+        <Shield className="w-10 h-10 mx-auto mb-6 text-purple-400/60" />
+        <p className="text-lg text-neutral-400 mb-2">Connect your wallet</p>
+        <p className="text-sm text-neutral-600">to start trading privately</p>
       </div>
     );
   }
@@ -293,7 +293,7 @@ export function SwapCard() {
         if (polledStatus === 'UNKNOWN') return 'PENDING';
         return polledStatus || 'PENDING';
       }
-      
+
       const latestEvent = settlementEvents[settlementEvents.length - 1];
       switch (latestEvent.type) {
         case 'SETTLEMENT_COMPLETE':
@@ -317,16 +317,16 @@ export function SwapCard() {
         }
       }
     };
-    
+
     const status = getStatusFromEvents();
-    
+
     // Get txHash from events or polled data
     const txnHashFromEvents = settlementEvents.find(e => e.data?.txHash)?.data?.txHash;
     const txnHash = txnHashFromEvents || intentStatus?.txnHash;
-    
+
     const counterparty = intentStatus?.counterparty;
     const matchId = intentStatus?.matchId;
-    const settlementError = intentStatus?.settlementError || 
+    const settlementError = intentStatus?.settlementError ||
       settlementEvents.find(e => e.type === 'SETTLEMENT_FAILED')?.data?.error;
 
     const getStatusColor = () => {
@@ -351,11 +351,11 @@ export function SwapCard() {
 
     return (
       <div className="max-w-md mx-auto">
-        <div className="p-6 bg-gray-800/50 rounded-2xl border border-gray-700 space-y-6">
+        <div className="p-6 space-y-6">
 
           {/* Header Section */}
           <div className="text-center space-y-3">
-            <div className={`w-16 h-16 ${getStatusBg()} rounded-full flex items-center justify-center mx-auto ${status === 'PENDING' || status === 'SETTLING' ? 'animate-pulse' : ''}`}>
+            <div className={`w-14 h-14 ${getStatusBg()} rounded-full flex items-center justify-center mx-auto ${status === 'PENDING' || status === 'SETTLING' ? 'animate-pulse' : ''}`}>
               {(status === 'PENDING' || status === 'SETTLING') && <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />}
               {status === 'MATCHED' && <Coins className="w-8 h-8 text-blue-400 animate-bounce" />}
               {status === 'SETTLED' && <Check className="w-8 h-8 text-green-400" />}
@@ -380,7 +380,7 @@ export function SwapCard() {
           </div>
 
           {/* Live Settlement Feed */}
-          <div className="p-4 bg-gray-900/70 rounded-xl border border-gray-800 space-y-3 font-mono text-sm">
+          <div className="p-4 bg-white/5 rounded-xl space-y-3 font-mono text-sm">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-500 text-xs uppercase tracking-wider">Live Settlement Feed</span>
               <span className={`text-xs px-2 py-0.5 rounded ${sseConnected ? 'bg-green-900/50 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
@@ -478,12 +478,13 @@ export function SwapCard() {
           )}
 
           {/* Action Button */}
-          <button
+          <GradientButton
+            variant={status === 'SETTLED' ? 'variant' : 'default'}
             onClick={() => setSuccessIntent(null)}
-            className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-semibold transition-colors"
+            className="w-full"
           >
             {status === 'SETTLED' || status === 'FAILED' ? 'Start New Swap' : 'Cancel View'}
-          </button>
+          </GradientButton>
         </div>
       </div>
     );
@@ -494,9 +495,9 @@ export function SwapCard() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`mb-4 p-4 rounded-lg flex items-center gap-3 ${toast?.type === 'success'
-            ? 'bg-green-900/50 border border-green-700 text-green-300'
-            : 'bg-red-900/50 border border-red-700 text-red-300'
+          className={`mb-4 p-3 rounded-lg flex items-center gap-3 ${toast?.type === 'success'
+            ? 'bg-green-500/10 text-green-400'
+            : 'bg-red-500/10 text-red-400'
             }`}
         >
           {toast?.type === 'success' ? (
@@ -508,7 +509,7 @@ export function SwapCard() {
         </div>
       )}
 
-      <div className="p-6 bg-gray-800/50 rounded-2xl border border-gray-700 space-y-6">
+      <div className="p-6 space-y-6">
         {/* Header: Balances & Mint */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -528,10 +529,11 @@ export function SwapCard() {
               </div>
             </div>
           </div>
-          <button
+          <GradientButton
+            variant="variant"
             onClick={handleMint}
             disabled={isMinting}
-            className="flex items-center gap-2 px-3 py-2 bg-yellow-600/20 text-yellow-400 rounded-lg hover:bg-yellow-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-w-[120px] px-4 py-2 flex items-center gap-2"
           >
             {isMinting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -541,32 +543,32 @@ export function SwapCard() {
             <span className="text-xs font-medium">
               {isMinting ? 'Minting...' : 'Mint SHADOW'}
             </span>
-          </button>
+          </GradientButton>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-gray-700" />
+        <div className="border-t border-white/5" />
 
         {/* Swap Direction Toggle */}
         <div className="flex items-center justify-center gap-4">
-          <div className={`px-4 py-2 rounded-lg font-medium ${direction === 'shadow-to-eth'
-            ? 'bg-purple-600/20 text-purple-400'
-            : 'bg-gray-700/50 text-gray-400'
+          <div className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'shadow-to-eth'
+            ? 'bg-purple-500/15 text-purple-400'
+            : 'text-neutral-500'
             }`}>
             {tokens.from}
           </div>
 
           <button
             onClick={toggleDirection}
-            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors"
             title="Switch direction"
+            className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors group"
           >
-            <ArrowDownUp className="w-5 h-5 text-gray-300" />
+            <ArrowDownUp className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
           </button>
 
-          <div className={`px-4 py-2 rounded-lg font-medium ${direction === 'eth-to-shadow'
-            ? 'bg-purple-600/20 text-purple-400'
-            : 'bg-gray-700/50 text-gray-400'
+          <div className={`px-4 py-2 rounded-lg font-medium transition-colors ${direction === 'eth-to-shadow'
+            ? 'bg-purple-500/15 text-purple-400'
+            : 'text-neutral-500'
             }`}>
             {tokens.to}
           </div>
@@ -585,7 +587,7 @@ export function SwapCard() {
               placeholder="0.0"
               min="0"
               step="0.01"
-              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white text-xl placeholder:text-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+              className="w-full px-4 py-3 bg-white/5 rounded-lg text-white text-xl placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
               <span className="text-gray-400 font-medium">{tokens.from}</span>
@@ -605,21 +607,21 @@ export function SwapCard() {
         {/* Action Button */}
         <div>
           {actionState === 'low-balance' && (
-            <button
+            <GradientButton
               disabled
-              className="w-full py-4 bg-gray-700 text-gray-400 rounded-xl font-semibold cursor-not-allowed"
+              className="w-full opacity-50 cursor-not-allowed"
             >
               {!amount || parseFloat(amount) <= 0
                 ? 'Enter Amount'
                 : `Insufficient ${tokens.from} Balance`}
-            </button>
+            </GradientButton>
           )}
 
           {actionState === 'needs-approval' && (
-            <button
+            <GradientButton
               onClick={handleApprove}
               disabled={isApproving}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full"
             >
               {isApproving ? (
                 <>
@@ -629,14 +631,14 @@ export function SwapCard() {
               ) : (
                 `Approve ShadowRouter for ${tokens.from}`
               )}
-            </button>
+            </GradientButton>
           )}
 
           {actionState === 'ready' && (
-            <button
+            <GradientButton
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-5"
             >
               {isSubmitting ? (
                 <>
@@ -649,14 +651,14 @@ export function SwapCard() {
                   Sign & Submit Private Swap
                 </>
               )}
-            </button>
+            </GradientButton>
           )}
         </div>
 
         {/* Info Footer */}
-        <div className="pt-4 border-t border-gray-700">
-          <p className="text-xs text-gray-500 text-center">
-            🔒 Your intent is encrypted and matched P2P - never enters the public mempool
+        <div className="pt-4 border-t border-white/5">
+          <p className="text-xs text-neutral-600 text-center">
+            🔒 Your intent is encrypted and matched P2P — never enters the public mempool
           </p>
         </div>
       </div>
